@@ -9,7 +9,9 @@ def main(run_args):
     with open(os.path.join(run_args.logdir, 'hyps.json'), 'r') as f:
         hyps = json.load(f)
     args = namedtuple('Args', hyps.keys())(**hyps)
+    #print("before env fn")
     env_fn = make_env_fn(args)
+    #print("after env fn")
     model_fn = make_model_fn(args)
 
     time.sleep(1)

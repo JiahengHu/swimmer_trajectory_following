@@ -1,0 +1,9 @@
+robot = get_robot(args.robot)(xmlfile)
+params = robot.params()
+
+use normed parameters
+
+env is just normal environment (which we can replace with our own environment)
+The robot parames are passed in through the xml file (which we can change to make it hardcoded)
+
+Everytime, observation is concatenated with the robot parameters in the augmented environment
