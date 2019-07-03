@@ -33,13 +33,21 @@ def get_init_params(args):
     return normed_params
 
 def make_env_fn(args):
-    env_id = get_env_id(args.robot, args.terrain)
+    #env_id = get_env_id(args.robot, args.terrain)
+    #register the environment:
+    gym.envs.register(
+     id='Snake-v0',
+     entry_point='env_snake_env:LqrEnv',
+     max_episode_steps=150,
+     kwargs={'size' : 1, 'init_state' : 10., 'state_bound' : np.inf},
+    )
     def env_fn(rank):
-        default_xml = get_default_xml(args.robot)
-        xmlfile = os.path.join(args.logdir, 'logs', 'robot.xml.{}'.format(rank))
-        shutil.copyfile(default_xml, xmlfile)
-        set_global_seeds(args.seed + rank)
-        env = gym.make(env_id)
+        #previously, we get the xml here
+        # default_xml = get_default_xml(args.robot)
+        # xmlfile = os.path.join(args.logdir, 'logs', 'robot.xml.{}'.format(rank))
+        # shutil.copyfile(default_xml, xmlfile)
+        set_global_seeds(args.seed + rank)   #hopefully this only set the random seed
+        env = gym.make('Snake-v0')
         return NLimbRecorderEnv(env, xmlfile, args.robot)
     return env_fn
 

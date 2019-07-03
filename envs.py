@@ -265,6 +265,53 @@ class NLimbEnv(Wrapper):
         self.robot.update(self._unnorm_params(params))
         self.params = params
 
+#this is the wrapper for the snake environment
+class SnakeParamEnv(Wrapper):
+    """
+    Environment wrapper for detecting and modifying robot parameters.
+    Hardcode the robot parameters
+    """
+    def __init__(self, env, parmas):
+        #we probably also need to change this environment so that it is compatable with the openai gym
+        super().__init__(env)
+        #why do we have this robot?
+        self.robot = get_robot(robot_type)(model_xml)
+        self.unwrapped.model_xml = model_xml
+
+        limits = self.robot.get_param_limits()
+        self.lim_min = np.array(limits[0])
+        self.lim_max = np.array(limits[1])
+        self.params = self._norm_params(self.robot.get_params())
+        self.param_names = self.robot.get_param_names()
+
+        assert len(self.observation_space.shape) == 1, "Ob space must be 1 dimensional"
+        shape = self.observation_space.shape[0] + len(self.params)
+        high = self.observation_space.high[0] * np.ones(shape)
+        low = self.observation_space.low[0] * np.ones(shape)
+        self.observation_space = Box(low, high, dtype=np.float32)
+
+    def _norm_params(self, params):
+        return (2 * (params - self.lim_min) / (self.lim_max - self.lim_min) - 1.0)
+
+    def _unnorm_params(self, params):
+        return (params + 1) / 2 * (self.lim_max - self.lim_min) + self.lim_min
+
+    def reset(self):
+        ob = self.env.reset()
+        ob = np.concatenate([ob, self.params])
+        return ob
+
+    def step(self, a):
+        ob, reward, done, info = self.env.step(np.clip(a,-1,1))
+        ob = np.concatenate([ob, self.params])
+        return ob, reward, done, info
+
+    def update_robot(self, params):
+        params = np.clip(params[:-1], -1., 1.)
+        assert len(params) == len(self.params)
+        self.robot.update(self._unnorm_params(params))
+        self.params = params
+
 
 class NLimbRecorderEnv(NLimbEnv):
     """
