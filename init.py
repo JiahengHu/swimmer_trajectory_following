@@ -37,9 +37,9 @@ def make_env_fn(args):
     #register the environment:
     gym.envs.register(
      id='Snake-v0',
-     entry_point='env_snake_env:LqrEnv',
-     max_episode_steps=150,
-     kwargs={'size' : 1, 'init_state' : 10., 'state_bound' : np.inf},
+     entry_point='snake_env.gym_snake_env:SnakeLocomotionEnv',
+     max_episode_steps=50,
+     #kwargs={'size' : 1, 'init_state' : 10., 'state_bound' : np.inf},
     )
     def env_fn(rank):
         #previously, we get the xml here

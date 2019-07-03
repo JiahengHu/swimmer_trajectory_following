@@ -9,7 +9,7 @@ import matplotlib.pyplot as plt
 import math
 import random
 import os
-from snake_lib import Snake_Robot
+from snake_env.snake_lib import Snake_Robot
 
 
 ##################################
@@ -24,7 +24,7 @@ end_step_num = 55                       #stop an episode after a given amount of
 dist_threshold = 3                      #the value to determine if the robot has reach the end position
 path_length = 50                        #the length of the randomly generated path
 use_random_state = False                #whether the robot start with a random state initially
-use_random_path = False                 #whether the robot should use a random path
+use_random_path = True                  #whether the robot should use a random path
 easy_path = True                        #whether the robot should use a easy (random) path
 save_trajectory = False                 #this will help keep track of the robot's state
 param_robot_link_length = 0.3           #this controls the link length of the robot
@@ -361,7 +361,7 @@ class SnakeLocomotionEnv(gym.Env):
       temp_state += self.point_transformation(self._path[index])
     self._state = temp_state + [1-self._state[-1]]
 
-  #swicth the physical parameter of the snake model
+  #switch the physical parameter of the snake model
   def switch_snake(self, mass = None, k_val = None, link_length = None):
     self._snake_model.switch_param(mass, k_val, link_length)
 
