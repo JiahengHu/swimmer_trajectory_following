@@ -224,7 +224,7 @@ class Module(object):
             modules.extend(m.find_submodules_by_name(name))
         return modules
 
-
+#might be useful later
 class RecurrentModule(Module):
     def __init__(self, name, *modules, state_modules=[]):
         """

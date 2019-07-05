@@ -2,23 +2,24 @@
 from rl.util import set_global_seeds
 import argparse, os, json, shutil, gym
 from model import *
-from envs import NLimbRecorderEnv
+from envs import NLimbRecorderEnv, SnakeParamEnv
 from robots import get_robot, get_default_xml
 
-def get_env_id(robot_type, terrain='flat'):
-    if robot_type == 'hopper':
-        id = 'Hopper-v1'
-    elif robot_type == 'walker':
-        id = 'Walker-v1'
-    elif robot_type == 'ant':
-        id = 'Ant-v1'
-    else:
-        assert False, "Unknown robot type"
-    assert terrain in ['flat', 'slope']
-    if terrain == 'slope':
-        id = 'Incline' + id
-    return 'NLimb' + id
+# def get_env_id(robot_type, terrain='flat'):
+#     if robot_type == 'hopper':
+#         id = 'Hopper-v1'
+#     elif robot_type == 'walker':
+#         id = 'Walker-v1'
+#     elif robot_type == 'ant':
+#         id = 'Ant-v1'
+#     else:
+#         assert False, "Unknown robot type"
+#     assert terrain in ['flat', 'slope']
+#     if terrain == 'slope':
+#         id = 'Incline' + id
+#     return 'NLimb' + id
 
+#need to edite if gives an error, starting with random is probably fine
 def get_init_params(args):
     if args.init_with_default:
         xmlfile = get_default_xml(args.robot)
@@ -32,6 +33,7 @@ def get_init_params(args):
     normed_params = 2 * (np.array(params) - np.array(lmin)) / (np.array(lmax) - np.array(lmin)) - 1.0
     return normed_params
 
+#this should be modified to be working
 def make_env_fn(args):
     #env_id = get_env_id(args.robot, args.terrain)
     #register the environment:
@@ -48,20 +50,30 @@ def make_env_fn(args):
         # shutil.copyfile(default_xml, xmlfile)
         set_global_seeds(args.seed + rank)   #hopefully this only set the random seed
         env = gym.make('Snake-v0')
-        return NLimbRecorderEnv(env, xmlfile, args.robot)
+        return SnakeParamEnv(env)
     return env_fn
 
+#looks like this doesn't need to be modified
 def make_model_fn(args):
     hiddens = [args.nunits] * args.nlayers
     mean_init = get_init_params(args)
     def model_fn(env):
         obs = layers.Placeholder(tf.float32, env.observation_space.shape, 'obs')
+
+        #if error here, we probably need to create a params field for the environment
         obs = RunningObsNorm('norm', obs, param_size=len(env.params))
         net = Net('net_pi', obs, hiddens=hiddens)
         actor = Policy('pi', net, ac_space=env.action_space)
         net = Net('net_vf', obs, hiddens=hiddens)
         critic = ValueFunction('vf', net)
+
+        #so what is the robot here?
+        #def __init__(self, dtype, shape, name,
+        #it is the input to the neural network, I'm not sure where the +1 comes from
+        #and this is using the env.params as input??
         robot = layers.Placeholder(tf.float32, [len(env.params) + 1], 'robot_ph')
+
+        #def __init__(self, name, robot, nparams, ncomponents=8, mean_init=None, std_init=0.577):
         sampler = RobotSampler('sampler', robot, len(env.params), args.ncomponents, mean_init, args.std_init)
         return Model('m', actor, critic, sampler)
     return model_fn
@@ -77,8 +89,8 @@ if __name__ == '__main__':
     parser.add_argument('logdir', type=str, help='log directory')
     parser.add_argument('-n', '--nenv', type=int, default=8, help='# of threads to create')
     parser.add_argument('-t', '--maxtimesteps', type=int, default=int(1e9), help='max timesteps')
-    parser.add_argument('--robot', type=str, default='hopper', help='robot xml to use. Options are [hopper, walker, ant, humanoid]')
-    parser.add_argument('--terrain', default='flat', type=str, help='[flat, slope]')
+    # parser.add_argument('--robot', type=str, default='hopper', help='robot xml to use. Options are [hopper, walker, ant, humanoid]')
+    # parser.add_argument('--terrain', default='flat', type=str, help='[flat, slope]')
     parser.add_argument('--seed',type=int, default=0, help='random seed')
     parser.add_argument('--gamma',type=float, default=.99, help='gamma')
     parser.add_argument('--lmbda',type=float, default=.95, help='lambda')

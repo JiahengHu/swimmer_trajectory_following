@@ -1,7 +1,8 @@
 from sympy.physics.mechanics import *
 from sympy import symbols, cos, sin, expand
 from sympy import Dummy, lambdify
-from numpy import array, hstack, zeros, linspace, pi, ones, arange, around
+from numpy import array, hstack, zeros, linspace, pi, ones, arange, around, ndarray
+import numpy as np
 from numpy.linalg import solve
 from scipy.integrate import odeint
 from matplotlib import pyplot as plt
@@ -253,26 +254,29 @@ class Snake_Robot:
     
     #switch the physical parameter of our snake
     #don't switch for fields = None
+    #this will need to be changed if the numpy array is making the performance weird
     def switch_param(self, mass = None, k_val = None, link_length = None):
 
         #first, process the mass, k_val, and link_length
-        if mass:
-            if(type(mass)!=list):
+        if mass is not None:
+            if(type(mass)!=list and type(mass)!=np.ndarray):
                 mass = [mass]*self.n
             self.mass = mass
 
-        if link_length:
-            if(type(link_length)!=list):
+        if link_length is not None:
+            if(type(link_length)!=list and type(mass)!=np.ndarray):
                 link_length = [link_length]*self.n
             self.link_length = link_length
-        if k_val:
-            if(type(k_val)!=list):
+        if k_val is not None:
+            if(type(k_val)!=list and type(mass)!=np.ndarray):
                 k_val = [k_val]*(self.n-1)
             self.k_val = k_val
 
         self.parameter_vals = [self.mass[0], self.link_length[0]]
         for i in range(self.n-1):
             self.parameter_vals+=[self.mass[i+1],self.link_length[i+1],self.k_val[i]]
+
+        print(f"our current parameters are {self.parameter_vals}")
 
     ####################################################################
     #################### currently not functional  #####################

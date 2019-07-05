@@ -53,9 +53,12 @@ class Net(module.Module):
             )
         return net
 
+#need to figure out what this does
 class RobotSampler(module.Module):
     """
     Define robot distribution.
+
+    mean_init controls the initial mean value of the sampler
     """
     ninputs=1
     def __init__(self, name, robot, nparams, ncomponents=8, mean_init=None, std_init=0.577):
@@ -78,24 +81,35 @@ class RobotSampler(module.Module):
                 mean = np.asarray(self.mean_init)
             else:
                 mean = np.random.uniform(-0.8,0.8, size=self.nparams)
+
+            #this is the mean for the specific distri
             m = tf.get_variable('m{}'.format(i),
                                 shape=mean.shape,
                                 dtype=tf.float32,
                                 initializer=tf.constant_initializer(mean))
+
+
             logstd = np.log(self.std_init * np.ones_like(mean))
+
+            #this is the std deviation / variance?
             s = tf.get_variable('logstd{}'.format(i),
                                 shape=logstd.shape,
                                 dtype=tf.float32,
                                 initializer=tf.constant_initializer(logstd))
             vars.append(m)
             vars.append(s)
+
+        #Not really sure what it is doing here
         gmm_params = tf.tile(tf.expand_dims(tf.concat(vars, axis=0), axis=0), [self.nbatch*self.nstep, 1])
         self.pd = GmmPd(gmm_params, self.ncomponents)
 
 
         self._sample_component = self.pd.mixture.sample()
         self._sample_gaussians = [g.sample() for g in self.pd.gaussians]
+        #not really sure what the mode is doing but lol
+        #ok it is the mean of the gaussian distri (deterministic)
         self._mode = self.pd.mode()
+        #sampling based on chance
         self._sample = self.pd.sample()
         return self.pd.neglogp(sampled_robot)
 
@@ -105,6 +119,7 @@ class RobotSampler(module.Module):
         else:
             return self._sample.eval()
 
+    #not exactly sure what this does
     def sample_component(self):
         return self._sample_component.eval()
 

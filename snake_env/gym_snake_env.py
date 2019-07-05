@@ -108,6 +108,12 @@ class SnakeLocomotionEnv(gym.Env):
     score = self.vec_dot(direction_vec, motion_vec)
     #print(f"direction_vec:{direction_vec}, motion_vec: {motion_vec}")
     
+    #need to handle the special case when start point index is the last point?
+    if(self._start_point_index == len(self._path)):
+    	print("warning! Starting point is the last point")
+    	print(f"total step: {self._total_step}")
+    	self._start_point_index -= 1
+
     #need to change this completely
     #calculate the new distance to each of the five points
     dist_sum = 0
@@ -117,8 +123,9 @@ class SnakeLocomotionEnv(gym.Env):
       y[1]- self._path[self._start_point_index - 1][1])
     vec_list = [vec]
     dist_list = [self.vec_len(vec)]
-    #need to handle the special case when start point index is the last point?
     
+
+
     #add the last point as well
     for i in range(self._start_point_index, 
       min(self._start_point_index + num_of_points, len(self._path))):
@@ -364,6 +371,10 @@ class SnakeLocomotionEnv(gym.Env):
   #switch the physical parameter of the snake model
   def switch_snake(self, mass = None, k_val = None, link_length = None):
     self._snake_model.switch_param(mass, k_val, link_length)
+
+  def get_physical_params(self):
+  	return self._snake_model.mass + self._snake_model.k_val + self._snake_model.link_length
+
 
 if __name__ == "__main__":
     random_action = [0.4]

@@ -13,6 +13,7 @@ def main(run_args):
     env_fn = make_env_fn(args)
     #print("after env fn")
     model_fn = make_model_fn(args)
+    #this is just getting the env function and the model function
 
     time.sleep(1)
     alg = Algorithm(run_args.logdir, env_fn, model_fn, args.nenv,

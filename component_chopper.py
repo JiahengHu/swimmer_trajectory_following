@@ -1,7 +1,7 @@
 import numpy as np
 from mpi4py import MPI
 
-
+#what does this class do?
 class ComponentChopper(object):
     def __init__(self, env, actor, rank):
         self.env = env

@@ -65,3 +65,17 @@ class Walker(MuJoCoXmlRobot):
         params = np.array(params)
         params = np.concatenate([params, params[2:]])
         super().update(params, xml_file)
+
+# Add parameter constraints for the different robots
+class Snake():
+    def __init__(self, n):
+        #self.default_robot = MuJoCoXmlRobot(get_default_xml('hopper'))
+        #self.default_params = np.array(self.default_robot.get_params())
+
+        self.default_params = np.array([0.1] * n + [0.1] * (n - 1) + [0.3] * n)
+        #parameter is defined as mass, k_constant and link_length
+        self.lower_limits = 0.5 * self.default_params
+        self.upper_limits = 1.5 * self.default_params
+
+    def get_param_limits(self):
+        return self.lower_limits, self.upper_limits

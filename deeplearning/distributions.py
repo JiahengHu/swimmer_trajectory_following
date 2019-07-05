@@ -232,7 +232,7 @@ class DiagGaussianMixturePd(Pd):
         # just return the mode of the most likely gaussian in the mixture (this might not be the mode)
         modes = tf.stack([g.mode() for g in self.gaussians])
         logps = tf.stack([g.logp(g.mode()) + self.log_mixing_probs[:,i] for i,g in enumerate(self.gaussians)])
-        return tf.gather(modes, tf.argmax(logps))[0]
+        return tf.gather(modes, tf.argmax(logps))[0] #it is fine because argmax samples if equal
     def neglogp(self, x):
         p = tf.stack([self.log_mixing_probs[:,i] + self.gaussians[i].logp(x) for i in range(self.n)])
         if self.hard_grad:

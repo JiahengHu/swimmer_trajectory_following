@@ -16,209 +16,212 @@ from roboschool.scene_abstract import Scene, cpp_household
 from roboschool.gym_mujoco_walkers import *
 from gym.envs.registration import register
 
-class SinglePlayerScene(SinglePlayerStadiumScene):
-    def __init__(self,*args, render=False, inclined=False, **kwargs):
-        super().__init__(*args,**kwargs)
-        self.render = render
-        self.inclined = inclined
+# class SinglePlayerScene(SinglePlayerStadiumScene):
+#     def __init__(self,*args, render=False, inclined=False, **kwargs):
+#         super().__init__(*args,**kwargs)
+#         self.render = render
+#         self.inclined = inclined
 
-    def episode_restart(self):
-        Scene.episode_restart(self)
-        stadium_pose = cpp_household.Pose()
-        if self.zero_at_running_strip_start_line:
-            stadium_pose.set_xyz(27, 21, 0)
-        if self.render:
-            if self.inclined:
-                self.hfield = self.cpp_world.load_thingy('assets/incline_grass.obj', stadium_pose, 1.0, 0, 0xFFFFFF, True)
-            else:
-                self.stadium = self.cpp_world.load_thingy(
-                os.path.join(os.path.dirname(roboschool.__file__), "models_outdoor/stadium/stadium1.obj"),
-                stadium_pose, 1.0, 0, 0xFFFFFF, True)
+#     def episode_restart(self):
+#         Scene.episode_restart(self)
+#         stadium_pose = cpp_household.Pose()
+#         if self.zero_at_running_strip_start_line:
+#             stadium_pose.set_xyz(27, 21, 0)
+#         if self.render:
+#             if self.inclined:
+#                 self.hfield = self.cpp_world.load_thingy('assets/incline_grass.obj', stadium_pose, 1.0, 0, 0xFFFFFF, True)
+#             else:
+#                 self.stadium = self.cpp_world.load_thingy(
+#                 os.path.join(os.path.dirname(roboschool.__file__), "models_outdoor/stadium/stadium1.obj"),
+#                 stadium_pose, 1.0, 0, 0xFFFFFF, True)
 
-        if self.inclined:
-            self.ground_plane_mjcf = self.cpp_world.load_mjcf( "assets/incline_plane.mjcf")
-        else:
-            self.ground_plane_mjcf = self.cpp_world.load_mjcf( "assets/level_plane.mjcf")
-
-
-def create_env(BaseClass):
-    class Env(BaseClass):
-        def __init__(self, *args, **kwargs):
-            super().__init__(*args, **kwargs)
-            self.render_ground = False
-            self.inclined_terrain = False
-
-        def create_single_player_scene(self):
-            return SinglePlayerScene(gravity=9.8, timestep=0.0165/4, frame_skip=4, render=self.render_ground, inclined=self.inclined_terrain)
-
-        def set_render_ground(self, render=False):
-            self.render_ground = render
-            if self.scene is not None:
-                self.scene.render = render
-
-        def _reset(self):
-            """
-            Load from abribrary xml files.
-            """
-            if self.scene is None:
-                self.scene = self.create_single_player_scene()
-            if not self.scene.multiplayer:
-                self.scene.episode_restart()
-            # Only this line has been changed. The rest is copied from Roboschool.
-            self.mjcf = self.scene.cpp_world.load_mjcf(self.model_xml)
-            self.ordered_joints = []
-            self.jdict = {}
-            self.parts = {}
-            self.frame = 0
-            self.done = 0
-            self.reward = 0
-            dump = 0
-            for r in self.mjcf:
-                if dump: print("ROBOT '%s'" % r.root_part.name)
-                if r.root_part.name==self.robot_name:
-                    self.cpp_robot = r
-                    self.robot_body = r.root_part
-                for part in r.parts:
-                    if dump: print("\tPART '%s'" % part.name)
-                    self.parts[part.name] = part
-                    if part.name==self.robot_name:
-                        self.cpp_robot = r
-                        self.robot_body = part
-                for j in r.joints:
-                    if dump: print("\tALL JOINTS '%s' limits = %+0.2f..%+0.2f effort=%0.3f speed=%0.3f" % ((j.name,) + j.limits()) )
-                    if j.name[:6]=="ignore":
-                        j.set_motor_torque(0)
-                        continue
-                    j.power_coef = 100.0
-                    self.ordered_joints.append(j)
-                    self.jdict[j.name] = j
-            assert(self.cpp_robot)
-            self.robot_specific_reset()
-            for r in self.mjcf:
-                r.query_position()
-            s = self.calc_state()    # optimization: calc_state() can calculate something in self.* for calc_potential() to use
-            self.potential = self.calc_potential()
-            self.camera = self.scene.cpp_world.new_camera_free_float(self.VIDEO_W, self.VIDEO_H, "video_camera")
-            return s
-
-        def calc_state(self):
-            """
-            Zero out foot contact booleans.
-            """
-            state = super().calc_state()
-            state[-len(self.foot_list):] = 0.
-            return state
-
-    return Env
+#         if self.inclined:
+#             self.ground_plane_mjcf = self.cpp_world.load_mjcf( "assets/incline_plane.mjcf")
+#         else:
+#             self.ground_plane_mjcf = self.cpp_world.load_mjcf( "assets/level_plane.mjcf")
 
 
-def create_inline_env(BaseClass):
-    class Env(BaseClass):
-        def __init__(self, *args, slope=5., **kwargs):
-            super().__init__(*args, **kwargs)
-            self.inclined_terrain = True
-            self.slope = slope # 5 degrees
-            shape = self.observation_space.shape[0] + 1
-            high = np.inf*np.ones([shape])
-            self.observation_space = gym.spaces.Box(-high, high, dtype=np.float32)
+# def create_env(BaseClass):
+#     print("this function (envs.py: create_env) is not fully understood yet and probably shouldn't be called")
+#     class Env(BaseClass):
+#         def __init__(self, *args, **kwargs):
+#             super().__init__(*args, **kwargs)
+#             self.render_ground = False
+#             self.inclined_terrain = False
 
-        def robot_specific_reset(self):
-            """
-            Angle the feet of the Hopper and Walker with the slope
-            to avoid starting in collision with the ground.
-            """
-            if isinstance(self, RoboschoolAnt):
-                super().robot_specific_reset()
-                return
+#         def create_single_player_scene(self):
+#             return SinglePlayerScene(gravity=9.8, timestep=0.0165/4, frame_skip=4, render=self.render_ground, inclined=self.inclined_terrain)
 
-            for j in self.ordered_joints:
-                if j.name.rsplit('_',1)[0] in self.foot_list:
-                    j.reset_current_position(np.pi * self.slope / 180. + self.np_random.uniform( low=-0.1, high=0.1 ), 0)
-                else:
-                    j.reset_current_position(self.np_random.uniform( low=-0.1, high=0.1 ), 0)
+#         def set_render_ground(self, render=False):
+#             self.render_ground = render
+#             if self.scene is not None:
+#                 self.scene.render = render
 
-            self.feet = [self.parts[f] for f in self.foot_list]
-            self.feet_contact = np.array([0.0 for f in self.foot_list], dtype=np.float32)
-            self.scene.actor_introduce(self)
-            self.initial_z = None
+#         def _reset(self):
+#             """
+#             Load from abribrary xml files.
+#             """
+#             if self.scene is None:
+#                 self.scene = self.create_single_player_scene()
+#             if not self.scene.multiplayer:
+#                 self.scene.episode_restart()
+#             # Only this line has been changed. The rest is copied from Roboschool.
+#             self.mjcf = self.scene.cpp_world.load_mjcf(self.model_xml)
+#             self.ordered_joints = []
+#             self.jdict = {}
+#             self.parts = {}
+#             self.frame = 0
+#             self.done = 0
+#             self.reward = 0
+#             dump = 0
+#             for r in self.mjcf:
+#                 if dump: print("ROBOT '%s'" % r.root_part.name)
+#                 if r.root_part.name==self.robot_name:
+#                     self.cpp_robot = r
+#                     self.robot_body = r.root_part
+#                 for part in r.parts:
+#                     if dump: print("\tPART '%s'" % part.name)
+#                     self.parts[part.name] = part
+#                     if part.name==self.robot_name:
+#                         self.cpp_robot = r
+#                         self.robot_body = part
+#                 for j in r.joints:
+#                     if dump: print("\tALL JOINTS '%s' limits = %+0.2f..%+0.2f effort=%0.3f speed=%0.3f" % ((j.name,) + j.limits()) )
+#                     if j.name[:6]=="ignore":
+#                         j.set_motor_torque(0)
+#                         continue
+#                     j.power_coef = 100.0
+#                     self.ordered_joints.append(j)
+#                     self.jdict[j.name] = j
+#             assert(self.cpp_robot)
+#             self.robot_specific_reset()
+#             for r in self.mjcf:
+#                 r.query_position()
+#             s = self.calc_state()    # optimization: calc_state() can calculate something in self.* for calc_potential() to use
+#             self.potential = self.calc_potential()
+#             self.camera = self.scene.cpp_world.new_camera_free_float(self.VIDEO_W, self.VIDEO_H, "video_camera")
+#             return s
 
-        def alive_bonus(self, z, pitch):
-            """
-            Adjust Roboschool height thresholds to account for changes
-            in elevation.
-            """
-            bonus = 0.5 if isinstance(self, RoboschoolAnt) else 1.0
-            thresh = 0.26 if isinstance(self, RoboschoolAnt) else 0.8
-            thresh += self.body_xyz[0] * np.tan(np.pi * self.slope / 180.)
-            return bonus if z > thresh and abs(pitch) < 1.0 else -1
+#         def calc_state(self):
+#             """
+#             Zero out foot contact booleans.
+#             """
+#             state = super().calc_state()
+#             state[-len(self.foot_list):] = 0.
+#             return state
 
-        def _reset(self):
-            ob = super()._reset()
-            return np.concatenate([ob, [self.slope]])
-
-        def _step(self, a):
-            ob, r, done, info = super()._step(a)
-            return np.concatenate([ob, [self.slope]]), r, done, info
-
-    return Env
+#     return Env
 
 
+# def create_inline_env(BaseClass):
+#     print("this function (envs.py: create_inline_env) is not fully understood yet and probably shouldn't be called")
 
-HopperEnv = create_env(RoboschoolHopper)
-WalkerEnv = create_env(RoboschoolWalker2d)
-AntEnv    = create_env(RoboschoolAnt)
-InclineHopperEnv = create_inline_env(HopperEnv)
-InclineWalkerEnv = create_inline_env(WalkerEnv)
-InclineAntEnv    = create_inline_env(AntEnv)
+#     class Env(BaseClass):
+#         def __init__(self, *args, slope=5., **kwargs):
+#             super().__init__(*args, **kwargs)
+#             self.inclined_terrain = True
+#             self.slope = slope # 5 degrees
+#             shape = self.observation_space.shape[0] + 1
+#             high = np.inf*np.ones([shape])
+#             self.observation_space = gym.spaces.Box(-high, high, dtype=np.float32)
 
-register(
-    id='NLimbHopper-v1',
-    entry_point='envs:HopperEnv',
-    max_episode_steps=1000,
-    reward_threshold=2500.0
-    )
+#         def robot_specific_reset(self):
+#             """
+#             Angle the feet of the Hopper and Walker with the slope
+#             to avoid starting in collision with the ground.
+#             """
+#             if isinstance(self, RoboschoolAnt):
+#                 super().robot_specific_reset()
+#                 return
 
-register(
-    id='NLimbWalker-v1',
-    entry_point='envs:WalkerEnv',
-    max_episode_steps=1000,
-    reward_threshold=2500.0
-    )
+#             for j in self.ordered_joints:
+#                 if j.name.rsplit('_',1)[0] in self.foot_list:
+#                     j.reset_current_position(np.pi * self.slope / 180. + self.np_random.uniform( low=-0.1, high=0.1 ), 0)
+#                 else:
+#                     j.reset_current_position(self.np_random.uniform( low=-0.1, high=0.1 ), 0)
 
-register(
-    id='NLimbAnt-v1',
-    entry_point='envs:AntEnv',
-    max_episode_steps=1000,
-    reward_threshold=2500.0
-    )
+#             self.feet = [self.parts[f] for f in self.foot_list]
+#             self.feet_contact = np.array([0.0 for f in self.foot_list], dtype=np.float32)
+#             self.scene.actor_introduce(self)
+#             self.initial_z = None
 
-register(
-    id='NLimbInclineHopper-v1',
-    entry_point='envs:InclineHopperEnv',
-    max_episode_steps=1000,
-    reward_threshold=2500.0
-    )
+#         def alive_bonus(self, z, pitch):
+#             """
+#             Adjust Roboschool height thresholds to account for changes
+#             in elevation.
+#             """
+#             bonus = 0.5 if isinstance(self, RoboschoolAnt) else 1.0
+#             thresh = 0.26 if isinstance(self, RoboschoolAnt) else 0.8
+#             thresh += self.body_xyz[0] * np.tan(np.pi * self.slope / 180.)
+#             return bonus if z > thresh and abs(pitch) < 1.0 else -1
 
-register(
-    id='NLimbInclineWalker-v1',
-    entry_point='envs:InclineWalkerEnv',
-    max_episode_steps=1000,
-    reward_threshold=2500.0
-    )
+#         def _reset(self):
+#             ob = super()._reset()
+#             return np.concatenate([ob, [self.slope]])
 
-register(
-    id='NLimbInclineAnt-v1',
-    entry_point='envs:InclineAntEnv',
-    max_episode_steps=1000,
-    reward_threshold=2500.0
-    )
+#         def _step(self, a):
+#             ob, r, done, info = super()._step(a)
+#             return np.concatenate([ob, [self.slope]]), r, done, info
+
+#     return Env
+
+
+
+# HopperEnv = create_env(RoboschoolHopper)
+# WalkerEnv = create_env(RoboschoolWalker2d)
+# AntEnv    = create_env(RoboschoolAnt)
+# InclineHopperEnv = create_inline_env(HopperEnv)
+# InclineWalkerEnv = create_inline_env(WalkerEnv)
+# InclineAntEnv    = create_inline_env(AntEnv)
+
+# register(
+#     id='NLimbHopper-v1',
+#     entry_point='envs:HopperEnv',
+#     max_episode_steps=1000,
+#     reward_threshold=2500.0
+#     )
+
+# register(
+#     id='NLimbWalker-v1',
+#     entry_point='envs:WalkerEnv',
+#     max_episode_steps=1000,
+#     reward_threshold=2500.0
+#     )
+
+# register(
+#     id='NLimbAnt-v1',
+#     entry_point='envs:AntEnv',
+#     max_episode_steps=1000,
+#     reward_threshold=2500.0
+#     )
+
+# register(
+#     id='NLimbInclineHopper-v1',
+#     entry_point='envs:InclineHopperEnv',
+#     max_episode_steps=1000,
+#     reward_threshold=2500.0
+#     )
+
+# register(
+#     id='NLimbInclineWalker-v1',
+#     entry_point='envs:InclineWalkerEnv',
+#     max_episode_steps=1000,
+#     reward_threshold=2500.0
+#     )
+
+# register(
+#     id='NLimbInclineAnt-v1',
+#     entry_point='envs:InclineAntEnv',
+#     max_episode_steps=1000,
+#     reward_threshold=2500.0
+#     )
 
 
 
 from gym import Wrapper
 from gym.spaces import Box
 import numpy as np
-from robots import Hopper, Walker, Ant
+from robots import Hopper, Walker, Ant, Snake
 from collections import deque
 from robots import get_robot
 
@@ -271,25 +274,47 @@ class SnakeParamEnv(Wrapper):
     Environment wrapper for detecting and modifying robot parameters.
     Hardcode the robot parameters
     """
-    def __init__(self, env, parmas):
+    def __init__(self, env):
         #we probably also need to change this environment so that it is compatable with the openai gym
         super().__init__(env)
         #why do we have this robot?
-        self.robot = get_robot(robot_type)(model_xml)
-        self.unwrapped.model_xml = model_xml
+        self.n = 3  ##think about where to pass in this n
+        self.robot = Snake(self.n)
+        # self.unwrapped.model_xml = model_xml
 
+        #here we are getting the parameter for the robot
         limits = self.robot.get_param_limits()
+
+        '''change to here
+        what is lim_min representing?
+        limits should be an array right?
+        Okay I see it make sense'''
         self.lim_min = np.array(limits[0])
         self.lim_max = np.array(limits[1])
-        self.params = self._norm_params(self.robot.get_params())
-        self.param_names = self.robot.get_param_names()
+
+        self.env_uwp = self.env.unwrapped
+
+        #what does the params and param_names get used?
+        #A: params records the actual value of the parameters
+        #Okay so it seems that somehow change in the robot can be captured by the environment
+
+        #so we can change update to switch robot
+        #we probably don't need a robot class because we are directly modifying the environment
+        #also need to look into the robot sampler to see what it is doing
+        self.params = self._norm_params(self.env_uwp.get_physical_params())
+        #self.param_names = self.robot.get_param_names()
+
 
         assert len(self.observation_space.shape) == 1, "Ob space must be 1 dimensional"
         shape = self.observation_space.shape[0] + len(self.params)
+        
+        print(f'the shape of the observation is {shape}')
+
         high = self.observation_space.high[0] * np.ones(shape)
         low = self.observation_space.low[0] * np.ones(shape)
         self.observation_space = Box(low, high, dtype=np.float32)
 
+    #ranging from -1 to 1
     def _norm_params(self, params):
         return (2 * (params - self.lim_min) / (self.lim_max - self.lim_min) - 1.0)
 
@@ -307,9 +332,19 @@ class SnakeParamEnv(Wrapper):
         return ob, reward, done, info
 
     def update_robot(self, params):
+        #why do we not want the last element?
+        #why is the range between -1 and 1? Because it has been normalized
+
+        #here the params come from the robot sampler
         params = np.clip(params[:-1], -1., 1.)
         assert len(params) == len(self.params)
-        self.robot.update(self._unnorm_params(params))
+        #self.robot.update(self._unnorm_params(params))
+
+        temp_params = self._unnorm_params(params)
+        #this directly change the parameters in our environment
+        self.env_uwp.switch_snake(mass = temp_params[:self.n], k_val = temp_params[self.n:self.n*2 - 1], 
+            link_length = temp_params[self.n*2 - 1:])
+        
         self.params = params
 
 
