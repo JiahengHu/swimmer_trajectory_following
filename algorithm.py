@@ -32,6 +32,8 @@ class Algorithm(MPIPPO):
     1) sample a new robot for each iteration
     2) update the robot distribution to maximize reward under the current policy.
     """
+
+    #will be updated if passed in new values
     def defaults(self):
         defaults = super().defaults()
         defaults.update({
@@ -50,6 +52,10 @@ class Algorithm(MPIPPO):
         os.makedirs(os.path.join(self.logdir, 'summaries'), exist_ok=True)
         self.writer = tf.summary.FileWriter(os.path.join(self.logdir, 'summaries'), max_queue=10000, flush_secs=60)
         self.chopper = ComponentChopper(self.env, self.actor, self.mpi_rank)
+        print("step before robot update (algorithm.py)")
+        print(self.args.steps_before_robot_update)
+        print("step after robot update (algorithm.py)")
+        print(self.args.steps_after_robot_update)
 
     def _build_robot_dist_optimizer(self):
         r = layers.Placeholder(tf.float32, [], 'robot_reward')
@@ -68,20 +74,20 @@ class Algorithm(MPIPPO):
         if hasattr(self, 'mpi_adam_robot') and os.path.exists(path):
             self.mpi_adam_robot.load(path)
 
-        # load robot xml file.
-        xml = os.path.join(self.logdir, 'checkpoints', str(self.t), 'design.xml')
-        if os.path.exists(xml):
-            shutil.copyfile(xml, self.env.unwrapped.model_xml)
+        # # load robot xml file.
+        # xml = os.path.join(self.logdir, 'checkpoints', str(self.t), 'design.xml')
+        # if os.path.exists(xml):
+        #     shutil.copyfile(xml, self.env.unwrapped.model_xml)
 
     def save(self):
         super().save()
         if self.mpi_rank == 0:
             self.mpi_adam_robot.save(os.path.join(self.logdir, 'checkpoints', str(self.t), 'radam.npz'))
 
-            # save mode robot xml
-            self.sample_robot(stochastic=False)
-            xml = os.path.join(self.logdir,'checkpoints', str(self.t), 'design.xml')
-            shutil.copyfile(self.env.unwrapped.model_xml, xml)
+            # # save mode robot xml
+            # self.sample_robot(stochastic=False)
+            # xml = os.path.join(self.logdir,'checkpoints', str(self.t), 'design.xml')
+            # shutil.copyfile(self.env.unwrapped.model_xml, xml)
 
     def sync(self):
         super().sync()
@@ -141,7 +147,7 @@ class Algorithm(MPIPPO):
         summary.value.add(tag="episode/length", simple_value=float(avg_length))
         summary.value.add(tag="episode/reward", simple_value=float(avg_reward))
 
-        for name,param in zip(self.env.param_names, self.env.robot.get_params()):
+        for name,param in zip(self.env.param_names, self.env.env_uwp.get_physical_params()):
             summary.value.add(tag="robot/" + name, simple_value=float(param))
             summary.value.add(tag="robot/" + name, simple_value=float(param))
         self.writer.add_summary(summary, global_step=self.t)

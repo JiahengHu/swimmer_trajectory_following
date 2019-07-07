@@ -72,6 +72,8 @@ class Snake():
         #self.default_robot = MuJoCoXmlRobot(get_default_xml('hopper'))
         #self.default_params = np.array(self.default_robot.get_params())
 
+        self.n = n
+
         self.default_params = np.array([0.1] * n + [0.1] * (n - 1) + [0.3] * n)
         #parameter is defined as mass, k_constant and link_length
         self.lower_limits = 0.5 * self.default_params
@@ -79,3 +81,7 @@ class Snake():
 
     def get_param_limits(self):
         return self.lower_limits, self.upper_limits
+
+    def get_param_names(self):
+        n = self.n
+        return ["mass_"+str(i+1) for i in range(n)] + ["k_constant_"+str(i+1) for i in range(n-1)] + ["link_length_"+str(i+1) for i in range(n)]

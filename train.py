@@ -4,6 +4,7 @@ from collections import namedtuple
 from algorithm import Algorithm
 from init import make_env_fn, make_model_fn
 import envs
+import tensorflow as tf
 
 def main(run_args):
     with open(os.path.join(run_args.logdir, 'hyps.json'), 'r') as f:
@@ -39,8 +40,10 @@ def main(run_args):
     alg.close()
 
 if __name__ == '__main__':
+    tf.logging.set_verbosity(tf.logging.ERROR)
     parser = argparse.ArgumentParser(description='continue experiments.')
     parser.add_argument('logdir', type=str, help='log directory')
     parser.add_argument('-s', '--maxseconds', type=int, default=None, help='max seconds')
-    parser.add_argument('--save_freq', type=int, default=int(5e6), help='timesteps per save')
+    #parser.add_argument('--save_freq', type=int, default=int(5e6), help='timesteps per save')
+    parser.add_argument('--save_freq', type=int, default=int(1), help='timesteps per save')
     main(parser.parse_args())

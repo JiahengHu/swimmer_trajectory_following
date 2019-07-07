@@ -92,6 +92,9 @@ class OnlineRLAlgorithm(object):
     def train(self, maxtimesteps=None, maxseconds=None, save_freq=None):
         assert maxtimesteps is not None or maxseconds is not None
         start_time = time.time()
+        print("this is the maxtimesteps (core.py)")
+        print(maxtimesteps)
+        print(self.t)
         while True:
             if maxtimesteps is not None and self.t >= maxtimesteps:
                 break
@@ -104,6 +107,7 @@ class OnlineRLAlgorithm(object):
         self.save()
 
     def save(self):
+        print("save is getting called in core (core.py)")
         self.exp.save(self.t)
 
     def load(self, t=None):

@@ -302,13 +302,13 @@ class SnakeParamEnv(Wrapper):
         #we probably don't need a robot class because we are directly modifying the environment
         #also need to look into the robot sampler to see what it is doing
         self.params = self._norm_params(self.env_uwp.get_physical_params())
-        #self.param_names = self.robot.get_param_names()
+        self.param_names = self.robot.get_param_names()
 
 
         assert len(self.observation_space.shape) == 1, "Ob space must be 1 dimensional"
         shape = self.observation_space.shape[0] + len(self.params)
         
-        print(f'the shape of the observation is {shape}')
+        #print(f'the shape of the observation is {shape}')
 
         high = self.observation_space.high[0] * np.ones(shape)
         low = self.observation_space.low[0] * np.ones(shape)
@@ -347,6 +347,41 @@ class SnakeParamEnv(Wrapper):
         
         self.params = params
 
+class SnakeRecorderEnv(SnakeParamEnv):
+    """
+    Extends NLimbEnv with code to save the performance of
+    recent robots.
+    """
+    def __init__(self, *args, buffer_size=1, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.param_buffer = deque(maxlen=buffer_size)
+        self.reward_buffer = deque(maxlen=buffer_size)
+        self.ep_rews = []
+        self.rews = []
+        self.unclipped_params = self.params
+
+    def reset(self):
+        if len(self.rews) > 0:
+            self.ep_rews.append(sum(self.rews))
+            self.rews = []
+        return super().reset()
+
+    def step(self, a):
+        ob, r, done, info = super().step(a)
+        self.rews.append(r)
+        return ob, r, done, info
+
+    def update_buffer(self):
+        if len(self.ep_rews) > 0:
+            self.param_buffer.append(self.unclipped_params)
+            self.reward_buffer.append(np.mean(self.ep_rews))
+            self.rews = []
+            self.ep_rews = []
+
+    def update_robot(self, params):
+        self.update_buffer()
+        self.unclipped_params = params
+        super().update_robot(params)
 
 class NLimbRecorderEnv(NLimbEnv):
     """

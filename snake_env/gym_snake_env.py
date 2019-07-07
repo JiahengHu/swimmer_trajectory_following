@@ -20,9 +20,9 @@ num_of_links = 3                        #the number of links of the snake robot
 num_of_points = 3                       #the number of points to look ahead
 max_angle = 1                           #the range of the joint angle
 time_interval = pi                      #the length of each episode of action
-end_step_num = 55                       #stop an episode after a given amount of time
+end_step_num = 64                       #stop an episode after a given amount of time
 dist_threshold = 3                      #the value to determine if the robot has reach the end position
-path_length = 50                        #the length of the randomly generated path
+path_length = 80                        #the length of the randomly generated path
 use_random_state = False                #whether the robot start with a random state initially
 use_random_path = True                  #whether the robot should use a random path
 easy_path = True                        #whether the robot should use a easy (random) path
@@ -373,7 +373,7 @@ class SnakeLocomotionEnv(gym.Env):
     self._snake_model.switch_param(mass, k_val, link_length)
 
   def get_physical_params(self):
-  	return self._snake_model.mass + self._snake_model.k_val + self._snake_model.link_length
+  	return list(self._snake_model.mass) + list(self._snake_model.k_val) + list(self._snake_model.link_length)
 
 
 if __name__ == "__main__":

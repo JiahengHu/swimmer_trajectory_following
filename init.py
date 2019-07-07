@@ -2,7 +2,7 @@
 from rl.util import set_global_seeds
 import argparse, os, json, shutil, gym
 from model import *
-from envs import NLimbRecorderEnv, SnakeParamEnv
+from envs import SnakeRecorderEnv, SnakeParamEnv
 from robots import get_robot, get_default_xml
 
 # def get_env_id(robot_type, terrain='flat'):
@@ -40,7 +40,7 @@ def make_env_fn(args):
     gym.envs.register(
      id='Snake-v0',
      entry_point='snake_env.gym_snake_env:SnakeLocomotionEnv',
-     max_episode_steps=50,
+     max_episode_steps=64,
      #kwargs={'size' : 1, 'init_state' : 10., 'state_bound' : np.inf},
     )
     def env_fn(rank):
@@ -50,7 +50,7 @@ def make_env_fn(args):
         # shutil.copyfile(default_xml, xmlfile)
         set_global_seeds(args.seed + rank)   #hopefully this only set the random seed
         env = gym.make('Snake-v0')
-        return SnakeParamEnv(env)
+        return SnakeRecorderEnv(env)
     return env_fn
 
 #looks like this doesn't need to be modified
@@ -103,9 +103,12 @@ if __name__ == '__main__':
     parser.add_argument('--epochs',type=int, default=4, help='epochs per PPO iteration')
     parser.add_argument('--ppo_clip_param',type=float, default=0.2, help='PPO clip param')
     parser.add_argument('--grad_clip_norm',type=float, default=0.5, help='grad clip norm')
-    parser.add_argument('--rollout_length',type=int, default=1024, help='timesteps per batch')
-    parser.add_argument('--steps_before_robot_update',type=int, default=1e8, help='start updating the robot at this timestep.')
-    parser.add_argument('--steps_after_robot_update',type=int, default=1e8, help='finetune the policy for this many timesteps after freezing the robot distribution.')
+    #parser.add_argument('--rollout_length',type=int, default=1024, help='timesteps per batch')
+    #parser.add_argument('--steps_before_robot_update',type=int, default=1e8, help='start updating the robot at this timestep.')
+    #parser.add_argument('--steps_after_robot_update',type=int, default=1e8, help='finetune the policy for this many timesteps after freezing the robot distribution.')
+    parser.add_argument('--rollout_length',type=int, default=64, help='timesteps per batch')
+    parser.add_argument('--steps_before_robot_update',type=int, default=2, help='start updating the robot at this timestep.')
+    parser.add_argument('--steps_after_robot_update',type=int, default=2, help='finetune the policy for this many timesteps after freezing the robot distribution.')
     parser.add_argument('--fixed_robot', default=False, action='store_true', help='run roboschool env with a fixed robot')
     parser.add_argument('--init_with_default', default=False, action='store_true', help='initialize robot params with OpenAI params')
     parser.add_argument('--init_with_xml', type=str, default=None, help='initialize robot params from a given xml file')
