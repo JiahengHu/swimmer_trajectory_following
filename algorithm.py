@@ -52,10 +52,10 @@ class Algorithm(MPIPPO):
         os.makedirs(os.path.join(self.logdir, 'summaries'), exist_ok=True)
         self.writer = tf.summary.FileWriter(os.path.join(self.logdir, 'summaries'), max_queue=10000, flush_secs=60)
         self.chopper = ComponentChopper(self.env, self.actor, self.mpi_rank)
-        print("step before robot update (algorithm.py)")
-        print(self.args.steps_before_robot_update)
-        print("step after robot update (algorithm.py)")
-        print(self.args.steps_after_robot_update)
+        # print("step before robot update (algorithm.py)")
+        # print(self.args.steps_before_robot_update)
+        # print("step after robot update (algorithm.py)")
+        # print(self.args.steps_after_robot_update)
 
     def _build_robot_dist_optimizer(self):
         r = layers.Placeholder(tf.float32, [], 'robot_reward')
@@ -85,7 +85,9 @@ class Algorithm(MPIPPO):
             self.mpi_adam_robot.save(os.path.join(self.logdir, 'checkpoints', str(self.t), 'radam.npz'))
 
             # # save mode robot xml
-            # self.sample_robot(stochastic=False)
+            self.sample_robot(stochastic=False)
+            for name,param in zip(self.env.param_names, self.env.env_uwp.get_physical_params()):
+                print(f"robot/{name} value: {param}")
             # xml = os.path.join(self.logdir,'checkpoints', str(self.t), 'design.xml')
             # shutil.copyfile(self.env.unwrapped.model_xml, xml)
 
@@ -106,9 +108,12 @@ class Algorithm(MPIPPO):
 
 
         # chop GMM components
+
         t_prev = self.t - self.timesteps_per_step
         last_chop = t_prev // self.args.chop_freq
-        if self.t // self.args.chop_freq != last_chop and t_prev > self.args.steps_before_robot_update:
+        #print(f"t prev is {t_prev}, last chop is {last_chop}")
+        if self.t // self.args.chop_freq != last_chop and self.t >= self.args.steps_before_robot_update:
+            
             if self.chopper.components_left() > 1:
                 self.chopper.chop()
                 self.mpi_adam.reset()

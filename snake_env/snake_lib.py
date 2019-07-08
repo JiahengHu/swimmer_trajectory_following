@@ -276,7 +276,7 @@ class Snake_Robot:
         for i in range(self.n-1):
             self.parameter_vals+=[self.mass[i+1],self.link_length[i+1],self.k_val[i]]
 
-        print(f"our current parameters are {self.parameter_vals}")
+        #print(f"our current parameters are {self.parameter_vals}")
 
     ####################################################################
     #################### currently not functional  #####################

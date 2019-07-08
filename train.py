@@ -45,5 +45,5 @@ if __name__ == '__main__':
     parser.add_argument('logdir', type=str, help='log directory')
     parser.add_argument('-s', '--maxseconds', type=int, default=None, help='max seconds')
     #parser.add_argument('--save_freq', type=int, default=int(5e6), help='timesteps per save')
-    parser.add_argument('--save_freq', type=int, default=int(1), help='timesteps per save')
+    parser.add_argument('--save_freq', type=int, default=int(5e3), help='timesteps per save')
     main(parser.parse_args())

@@ -20,23 +20,7 @@ It is not using the GPU... So it might be using CPU / stuck at somewhere
 1. It is on-policy, meaning that a replay buffer is not being used
 2. rollout_length = 1024??? Meaning it will collect 1024 amount of data and then use it to do update?
 
-Okay so the save freq determines everything
 
-/home/jeff/anaconda3/envs/nlimb/lib/python3.7/site-packages/gym/envs/registration.py:14: PkgResourcesDeprecationWarning: Parameters to load are deprecated.  Call .resolve and .require separately.
-  result = entry_point.load(False)
-Traceback (most recent call last):
-  File "train.py", line 49, in <module>
-    main(parser.parse_args())
-  File "train.py", line 39, in main
-    alg.train(args.maxtimesteps, run_args.maxseconds, run_args.save_freq)
-  File "/home/jeff/Projects/nlimb/rl/algorithms/core.py", line 103, in train
-    self.save()
-  File "/home/jeff/Projects/nlimb/algorithm.py", line 94, in save
-    shutil.copyfile(self.env.unwrapped.model_xml, xml)
-AttributeError: 'SnakeLocomotionEnv' object has no attribute 'model_xml'
-
-
-mpi_adam_robot?
 Also, need a way to save the robot parameters
 
 episode length: need to change in both env and init
@@ -44,9 +28,30 @@ episode length: need to change in both env and init
 change the save freq
 change the number of episode
 
-maxtimesteps? What does it do?
 
-Why initialized 8 times? Which of the parameters shall we use?
+chop means halve, this use the mpi_robot, and currently haven't been tested at all (so we might actually get some bug when dealing with this)
 
+self.timesteps_per_step = self.nenv * self.rollout_length
+							8*64 (previously 1024)
+							How many actions in total
+We have 8 envs in total everytime
 
-Why 40 only 1 iteration? need to figure out the relationshipt between these different things
+8 processes, only number 1 env saves the result
+
+all with rsp to t: initially 1e9
+
+if rollout = 1024*8
+	doesn't matter
+
+10*8 (pre) + 8*10*8 (update) + 10*8 (post)
+	Looks like something wrong? Cos we really only need 3 chops
+
+	chop set the probability to 0, and the probability is synchronized across the environments, so the number of enviornment has nothing to do with the number of prob distri
+
+512 + 2*512 + 512
+
+chopping takes a long time (but it is probably reasonable)
+Why does it chop on round 4 (instead of round 1, 2, 3?)
+
+choping is taking too much time
+#experiment: set sampling to 1, see how it goes

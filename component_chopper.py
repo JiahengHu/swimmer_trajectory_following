@@ -16,6 +16,7 @@ class ComponentChopper(object):
     def components_left(self):
         return np.sum(self.logmixprobs == 0.)
 
+    #this test only use one shot, but is called several times
     def test_robot(self, robot):
         reward = 0.
         done = False
@@ -28,6 +29,8 @@ class ComponentChopper(object):
         return reward
 
     def chop(self):
+        #print("chopping")
+        num_of_test = 10 #originally 100
         n = self.components_left()
         if n <= 1: return
 
@@ -36,7 +39,7 @@ class ComponentChopper(object):
             for i,c in enumerate(self.logmixprobs):
                 if c != 0: continue
                 rews = []
-                for _ in range(100):
+                for _ in range(num_of_test):
                     robot = self.sampler.sample_gaussian(i)[0]
                     rews.append(self.test_robot(robot))
                 avg_component_reward[i] = np.mean(rews)

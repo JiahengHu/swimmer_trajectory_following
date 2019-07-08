@@ -30,6 +30,7 @@ class OnlineRLAlgorithm(object):
 
         self.nenv = nenv
         self.timesteps_per_step = self.nenv * self.rollout_length
+        #print(f"timesteps per step is {self.timesteps_per_step} (core,py)")
         self.env = self._make_env(env_fn, nenv)
 
         self.actor = model_fn(self.env)
@@ -92,9 +93,9 @@ class OnlineRLAlgorithm(object):
     def train(self, maxtimesteps=None, maxseconds=None, save_freq=None):
         assert maxtimesteps is not None or maxseconds is not None
         start_time = time.time()
-        print("this is the maxtimesteps (core.py)")
-        print(maxtimesteps)
-        print(self.t)
+        # print("this is the maxtimesteps (core.py)")
+        # print(maxtimesteps)
+        # print(self.t)
         while True:
             if maxtimesteps is not None and self.t >= maxtimesteps:
                 break
@@ -107,7 +108,6 @@ class OnlineRLAlgorithm(object):
         self.save()
 
     def save(self):
-        print("save is getting called in core (core.py)")
         self.exp.save(self.t)
 
     def load(self, t=None):
