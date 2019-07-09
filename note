@@ -55,3 +55,43 @@ Why does it chop on round 4 (instead of round 1, 2, 3?)
 
 choping is taking too much time
 #experiment: set sampling to 1, see how it goes
+
+only works for one env, otherwise memory out
+
+right now it is way slower than their env (per step), even though the batch size is significantly smaller, why? Is it really that different? (1024 steps is significantly faster than 64 steps?)
+
+growth == true might hamper the speed?
+
+result for 1e6:
+robot/mass_1 value: 0.0795760452747345
+robot/mass_2 value: 0.13437068462371826
+robot/mass_3 value: 0.06639838814735413
+robot/k_constant_1 value: 0.10338518023490907
+robot/k_constant_2 value: 0.08443064689636232
+robot/link_length_1 value: 0.408584064245224
+robot/link_length_2 value: 0.2789143770933151
+robot/link_length_3 value: 0.18489774763584135
+
+
+
+
+50s:
+getting called 1585 times
+replace dummy symbols 0.0006654262542724609 seconds ---
+solve to get a matrix solution 1.9550323486328125e-05 seconds ---
+odeint 1.2791054248809814 seconds ---
+0.00002
+
+5s:
+getting called 203 times
+replace dummy symbols 0.0006403923034667969 seconds ---
+solve to get a matrix solution 1.9073486328125e-05 seconds ---
+odeint 0.20050811767578125 seconds ---
+
+
+simplify doubles the speed
+msub?
+doesn't improve speed
+
+if substituting in the param doens't work, probably has to resort to c solution
+currently: kinda worked
