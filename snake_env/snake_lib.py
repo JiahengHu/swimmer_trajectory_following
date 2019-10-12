@@ -10,7 +10,7 @@ import math
 from matplotlib import animation
 import time
 
-debug_snake_time = False
+debug_snake_time = True
 
 class Snake_Robot:
 
@@ -104,8 +104,6 @@ class Snake_Robot:
 
         LM = LagrangesMethod(self.L, [self.x0,self.y0,self.theta0]+self.q, nonhol_coneqs = self.constraints)
         LM.form_lagranges_equations()
-        if(debug_snake_time):
-            print("Form lagranges equations %s seconds ---" % (time.time() - start_time))
 
         #first, process the mass, k_val, and link_length
         if(type(mass)!=list):
@@ -130,22 +128,25 @@ class Snake_Robot:
             self.parameter_vals+=[mass[i+1],link_length[i+1],k_val[i]]
 
         parameters += [self.q1_amp,self.q1_freq]
-        if(debug_snake_time):
-            print("set the static parameters %s seconds ---" % (time.time() - start_time))
         #create dummy function
         dynamic = [self.x0,self.y0,self.theta0]+self.q+[self.dx0,self.dy0,self.dtheta0]+self.u
         dummy_symbols = [Dummy() for i in dynamic] 
         dummy_dict = dict(zip(dynamic, dummy_symbols))
-        if(debug_snake_time):
-            print("cretae dummmy variables %s seconds ---" % (time.time() - start_time))
-        M = LM.mass_matrix_full.subs(dummy_dict)                                  # Substitute into the mass matrix 
-        F = LM.forcing_full.subs(dummy_dict)                                      # Substitute into the forcing vector
-        if(debug_snake_time):
-            print("substitute dummmy variables %s seconds ---" % (time.time() - start_time))
-        self.M_func = lambdify(dummy_symbols + parameters + [self.t], M)               # Create a callable function to evaluate the mass matrix 
-        self.F_func = lambdify(dummy_symbols + parameters + [self.t], F)               # Create a callable function to evaluate the forcing vector 
-        if(debug_snake_time):
-            print("cretae dummmy functions %s seconds ---" % (time.time() - start_time))
+
+        M = LM.mass_matrix_full.simplify().subs(dummy_dict)                                  # Substitute into the mass matrix 
+        F = LM.forcing_full.simplify().subs(dummy_dict)                                      # Substitute into the forcing vector
+        print(M)
+        # print(F)
+        self.M = M
+        self.F = F
+        self.dummy_symbols = dummy_symbols
+        self.parameters = parameters
+
+
+        # print(LM.mass_matrix_full)
+        # self.final_mat = LM.mass_matrix_full.LUsolve(LM.forcing_full)
+        self.M_func = lambdify(dummy_symbols + parameters + [self.t], M, "numpy")               # Create a callable function to evaluate the mass matrix 
+        self.F_func = lambdify(dummy_symbols + parameters + [self.t], F, "numpy")               # Create a callable function to evaluate the forcing vector 
         self.dynamic = dynamic
 
 
@@ -169,19 +170,34 @@ class Snake_Robot:
         ----------
         y, t
         '''
+        if(debug_snake_time):
+            start_time = time.time()
 
         self.frequency_val = frequency
         self.amplitude_val = amplitude
 
+        # param_dict = dict(zip(self.parameters, self.parameter_vals + [frequency, amplitude]))
+
+        # #we can just substitute in things here, which would reduce the time a bit
+        # M = self.M.subs(param_dict)
+        # F = self.F.subs(param_dict)
+        # self.M_func = lambdify(self.dummy_symbols + [self.t], M)               # Create a callable function to evaluate the mass matrix 
+        # self.F_func = lambdify(self.dummy_symbols + [self.t], F)               # Create a callable function to evaluate the forcing vector 
+
         x0 = init                                                               # Initial conditions, q and u
-        t = linspace(t_val[0], t_val[1], t_val[2])                              # Time vector
-        y = odeint(self.right_hand_side, x0, t)                                 # Actual integration
+        t = linspace(t_val[0], t_val[1], t_val[2])
+        if(debug_snake_time):                              # Time vector
+            y, info = odeint(self.right_hand_side, x0, t,full_output=True)                                 # Actual integration
+
+        else:
+            y = odeint(self.right_hand_side, x0, t) 
 
         if(debug_snake_time):
             print("odeint %s seconds ---" % (time.time() - start_time))
+            print("Number of function evaluations: %d, number of Jacobian evaluations: %d" % (info['nfe'][-1], info['nje'][-1]))
         return y, t
   
-  
+
 
     '''
     Helper Function
@@ -204,10 +220,46 @@ class Snake_Robot:
             The derivative of the state.
         
         """
+        if(debug_snake_time):
+            start_time = time.time()
+
         arguments = hstack((x, self.parameter_vals+[self.amplitude_val, self.frequency_val], t))     # States, input, and parameters
+        #arguments = hstack((x, t))     # States, input, and parameters
+
 
         dx = array(solve(self.M_func(*arguments), # Solving for the derivatives
             self.F_func(*arguments))).T[0]        # The star here is for passing in an array
+
+        if(debug_snake_time):
+            print("hstack takes %s seconds ---" % (time.time() - start_time))
+            start_time = time.time()
+
+        M = self.M_func(*arguments)
+
+        if(debug_snake_time):
+            print("replace M symbols %s seconds ---" % (time.time() - start_time))
+            start_time = time.time()
+
+        # TEST_DICT = dict(zip(self.test_input, list(x) + self.parameter_vals+[self.amplitude_val, self.frequency_val] + [t]))
+        # print(TEST_DICT)
+        # testthings = msubs(self.test_mat, TEST_DICT)
+        # print(testthings)
+
+        # if(debug_snake_time):
+        #     print("test msub %s seconds ---" % (time.time() - start_time))
+        #     start_time = time.time()
+
+        F = self.F_func(*arguments)
+
+        if(debug_snake_time):
+            print("replace F symbols %s seconds ---" % (time.time() - start_time))
+            start_time = time.time()
+
+        dx = array(solve(M, F)).T[0]        # The star here is for passing in an array
+        
+        if(debug_snake_time):
+            print("solve to get a matrix solution %s seconds ---" % (time.time() - start_time))
+
         
         return dx[:2*(self.n+2)]
 
@@ -364,18 +416,18 @@ class Snake_Robot:
 
 
 if __name__ == "__main__":
-    #create the snake model
-    snake_test = Snake_Robot(4, mass = 0.01, k_val = 0.01)
+    # #create the snake model
+    # snake_test = Snake_Robot(4, mass = 0.01, k_val = 0.01)
 
-    #generate initial condition
-    init_cond = snake_test.generate_init_value(q1_init = -0.2, q2_init = 0.2)
+    # #generate initial condition
+    # init_cond = snake_test.generate_init_value(q1_init = -0.2, q2_init = 0.2)
     
-    #generate trajectory
-    y,t = snake_test.generate_trajectories(init_cond, 
-        amplitude = 0.2, frequency = 1, t_val = [0, 50, 1000])
+    # #generate trajectory
+    # y,t = snake_test.generate_trajectories(init_cond, 
+    #     amplitude = 0.2, frequency = 1, t_val = [0, 50, 1000])
 
-    #plot the trajectory
-    snake_test.plot_image(y, t)
+    # #plot the trajectory
+    # snake_test.plot_image(y, t)
 
     #create the snake model
     snake_test = Snake_Robot(3, mass = [0.01, 0.01, 0.02], k_val = 0.01)
@@ -388,35 +440,38 @@ if __name__ == "__main__":
         amplitude = 0.2, frequency = 1, t_val = [0, 50, 1000])
 
     #plot the trajectory
-    snake_test.plot_image(y, t)
+    snake_test.plot_image(y, t, show_pos = False, show_vel = False)
 
-     #create the snake model
-    snake_test = Snake_Robot(3, mass = [0.01, 0.01, 0.02], k_val = 0.01)
+    #  #create the snake model
+    # snake_test = Snake_Robot(3, mass = [0.01, 0.01, 0.02], k_val = 0.01)
 
-    #generate initial condition
-    init_cond = snake_test.generate_init_value(q1_init = -0.2, q2_init = 0.0)
+    # #generate initial condition
+    # init_cond = snake_test.generate_init_value(q1_init = -0.2, q2_init = 0.0)
     
-    #generate trajectory
-    y,t = snake_test.generate_trajectories(init_cond, 
-        amplitude = 0.2, frequency = 1, t_val = [0, 50, 1000])
+    # #generate trajectory
+    # y,t = snake_test.generate_trajectories(init_cond, 
+    #     amplitude = 0.2, frequency = 1, t_val = [0, 50, 1000])
 
-    #plot the trajectory
-    snake_test.plot_image(y, t)
+    # #plot the trajectory
+    # snake_test.plot_image(y, t)
 
 
 
-    #create the snake model
-    snake_test = Snake_Robot(5, mass = [0.01, 0.01, 0.01, 0.005, 0.005], k_val = 0.01)
+    # #create the snake model
+    # snake_test = Snake_Robot(5, mass = [0.01, 0.01, 0.01, 0.005, 0.005], k_val = 0.01)
 
-    #generate initial condition
-    init_cond = snake_test.generate_init_value(q1_init = -0.2, q2_init = 0.2)
+    # #generate initial condition
+    # init_cond = snake_test.generate_init_value(q1_init = -0.2, q2_init = 0.2)
     
-    #generate trajectory
-    y,t = snake_test.generate_trajectories(init_cond, 
-        amplitude = 0.2, frequency = 1, t_val = [0, 50, 1000])
+    # #generate trajectory
+    # y,t = snake_test.generate_trajectories(init_cond, 
+    #     amplitude = 0.2, frequency = 1, t_val = [0, 50, 1000])
 
-    #plot the trajectory
-    snake_test.plot_image(y, t)
+    # #plot the trajectory
+    # snake_test.plot_image(y, t)
+
+
+
 
 #   some of the other test data I've used
 #   init_cond = snake_test.generate_init_value(q1_init = pi/6, q2_init = -pi/6)
