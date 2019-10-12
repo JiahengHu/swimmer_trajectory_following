@@ -68,7 +68,7 @@ class Snake_Robot:
             dy_pos.append(dytemp)
             dtheta.append(dttemp)
 
-            L += 0.5*m[i]*(dxtemp*dxtemp+dytemp*dytemp+dttemp*dttemp) - 0.5*k[i]*q[i]*q[i]
+            L += 0.5*m[i+1]*(dxtemp*dxtemp+dytemp*dytemp+dttemp*dttemp) - 0.5*k[i]*q[i]*q[i]
             constraints.append(dytemp*cos(ttemp) - dxtemp*sin(ttemp))
 
         #initialize self objects
@@ -208,8 +208,6 @@ class Snake_Robot:
 
         dx = array(solve(self.M_func(*arguments), # Solving for the derivatives
             self.F_func(*arguments))).T[0]        # The star here is for passing in an array
-        
-
         
         return dx[:2*(self.n+2)]
 

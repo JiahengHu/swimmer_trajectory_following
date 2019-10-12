@@ -55,3 +55,43 @@ Why does it chop on round 4 (instead of round 1, 2, 3?)
 
 choping is taking too much time
 #experiment: set sampling to 1, see how it goes
+
+
+ctr A ctr D
+
+screen -r
+screen -S
+
+hanabi_no_seed_ben_gpu2
+
+aux
+
+
+
+ssh -p 23 biorobotics@highbay.pc.cs.cmu.edu
+
+
+What happens to the constraint??? 
+
+____________________________________________________________________________________________
+
+The start of gait optimization
+1. If we stick with PPO, we need to make sure that 
+
+Note:
+1. For now, in right_hand_side, I removed the T[0]. Add it back if necessary
+2. Set up the q1 and q2 amplitude & frequency
+
+3. What should be the time interval? For now I set it to 1 / 20
+
+4. Think about the length of the training: how can we make it so that it will learn to collect useful data? [We can end episode if the robot is too far away from the target!! [and get a negetive reward? Maybe just zero reward]]
+
+5. The number of points to return: currently 10, should we make it bigger / smaller?
+
+6. reward scaling & distance of path scaling
+
+7. stop episode num
+
+8. Add the previous action
+
+cleanup: change triple reset to reset
