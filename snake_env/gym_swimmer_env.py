@@ -9,7 +9,7 @@ import matplotlib.pyplot as plt
 import math
 import random
 import os
-from swimmer_lib import Swimmer
+from snake_env.swimmer_lib import Swimmer
 
 
 ##################################
@@ -21,7 +21,7 @@ num_of_points = 3                       #the number of points to look ahead
 max_angle = 1.3                         #the range of the joint angle, 75 degree (maybe we should have it in the lib)
 max_vel   = 0.6                         #the maximum velocity allowed (since we are using velocity control)
 time_interval = 1.0/100                 #the length of each episode of action
-end_step_num = 500                      #stop an episode after a given amount of time
+end_step_num = 5000                     #stop an episode after a given amount of time
 dist_threshold = 3                      #the value to determine if the robot has reach the end position
 path_length = 80                        #the length of the randomly generated path
 use_random_state = False                #whether the robot start with a random state initially
@@ -56,9 +56,9 @@ class SwimmerLocomotionEnv(gym.Env):
     self.action_space = spaces.Box(low = -max_vel, high = max_vel, 
         shape=(2,), dtype=np.float32) #since we have two joints
     
-    # state: q1, q2, points
+    # state: q1, q2, points, prev_action
     self.observation_space = spaces.Box(low=-np.inf, high=np.inf, shape=
-                    (num_of_links + 2*num_of_points - 1,), dtype=np.float32)
+                    (num_of_links + 2*num_of_points + 1,), dtype=np.float32)
 
     self._swimmer_model = Swimmer(num_of_links, 
       link_length = robot_link_length, k_val = robot_k)
@@ -192,7 +192,7 @@ class SwimmerLocomotionEnv(gym.Env):
   def get_initial_config(self):
     #state: x, y, theta, q1, q2
     n = self.n
-    return np.hstack([self._x, self._y, self._t] + self._state[:n-1])
+    return np.concatenate([[self._x, self._y, self._t], self._state[:n-1]])
   
   #check whether the action is valid, if not then clip it to the correct value
   #ONLY3LINK
@@ -350,12 +350,35 @@ class SwimmerLocomotionEnv(gym.Env):
       prev_theta = angle
     return path
   
-  def render(self):
+  def render(self, mode = 'human'):
+    fig = plt.figure()
+    plot = fig.add_subplot(111)
     for i in range(len(self._path)):
-      plt.plot(self._path[i][0], self._path[i][1],  'ro')
-    plt.plot(self._x,self._y, 'bo')
-    plt.plot(self._x+0.1*cos(self._t),self._y+0.1*sin(self._t),'bo')
-    plt.show()
+      plot.plot(self._path[i][0], self._path[i][1],  'ro')
+    plot.plot(self._x,self._y, 'bo')
+    plot.plot(self._x+0.1*cos(self._t),self._y+0.1*sin(self._t),'bo')
+    if(mode=='human'):
+      plt.show()
+    else:
+      return self.fig2data(fig)
+
+  def fig2data(self, fig):
+    """
+    @brief Convert a Matplotlib figure to a 4D numpy array with RGBA channels and return it
+    @param fig a matplotlib figure
+    @return a numpy 3D array of RGBA values
+    """
+    # draw the renderer
+    fig.canvas.draw()
+ 
+    # Get the RGBA buffer from the figure
+    w,h = fig.canvas.get_width_height()
+    buf = np.frombuffer(fig.canvas.tostring_rgb(), dtype=np.uint8)
+    buf = buf.reshape(h, w, 3)
+    #print(np.sum(buf!=255))
+    # canvas.tostring_argb give pixmap in ARGB mode. Roll the ALPHA channel to have it in RGBA mode
+    #buf = np.roll(buf, 3, axis = 2)
+    return buf
   
   def draw_trajectory(self, complicate = True):
     self._swimmer_model.plot_image(self.past_traj, self.past_t, show_pos = complicate, show_vel = complicate)
