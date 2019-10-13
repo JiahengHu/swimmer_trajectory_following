@@ -119,7 +119,7 @@ doesn't improve speed
 if substituting in the param doens't work, probably has to resort to c solution
 currently: kinda worked
 
-
+-----------------------------------------------------------
 
 Note:
 1. For now, in right_hand_side, I removed the T[0]. Add it back if necessary
@@ -140,3 +140,17 @@ Note:
 cleanup: change triple reset to reset
 
 9. Look up how the range is getting used
+
+Problem:
+I think the action space is confusing the robot too much that it don't know what to do
+1. We can discretize the action space
+2. We can try to change the reward structure
+	- Change it so that we encourage moving?
+
+The trajectory also looks weird: why is it straigh lines?
+
+The reward scale needs to be changed: the robot gets a lot of reward by going back and forth at a local scale
+
+!!because the robot is too far away from the path
+We need to at least adjust the gaussian threshold
+# because we can't stay close to the track at every single timestamp

@@ -193,6 +193,8 @@ class Swimmer:
         '''visualize the trajectory'''
         num = int(y.shape[1] / 2)
 
+        plt.gca().set_aspect('equal', adjustable='box')
+
         lines = plt.plot(y[:, 0], y[:, 1])
         lab = plt.xlabel('x')
         leg = plt.legend('y')

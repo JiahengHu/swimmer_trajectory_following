@@ -20,8 +20,9 @@ num_of_links = 3                        #the number of links of the snake robot
 num_of_points = 3                       #the number of points to look ahead
 max_angle = 1.3                         #the range of the joint angle, 75 degree (maybe we should have it in the lib)
 max_vel   = 0.6                         #the maximum velocity allowed (since we are using velocity control)
-time_interval = 1.0/100                 #the length of each episode of action
-end_step_num = 5000                     #stop an episode after a given amount of time
+time_interval = 1.0/2                 #the length of each episode of action
+end_step_time = 50
+end_step_num = end_step_time/time_interval                     #stop an episode after a given amount of time
 dist_threshold = 3                      #the value to determine if the robot has reach the end position
 path_length = 80                        #the length of the randomly generated path
 use_random_state = False                #whether the robot start with a random state initially
@@ -91,7 +92,7 @@ class SwimmerLocomotionEnv(gym.Env):
         state_0 = [random.uniform(-pi/4, pi/4) for i in range(self.n - 1)]
     else:
       #state_0 = [pi/6, -pi/6]+self.point_transformation([0,0])+[0, 0]
-      state_0 = [0.2, -0.2]
+      state_0 = [0.4, 0]
     temp_path = self._path[:num_of_points]
     
     for i in range(num_of_points):
