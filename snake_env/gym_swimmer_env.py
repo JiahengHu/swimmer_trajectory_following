@@ -32,6 +32,8 @@ save_trajectory = False                 #this will help keep track of the robot'
 param_robot_link_length = 0.3           #this controls the link length of the robot
 
 
+reward_tracking_point = int(3 / time_interval)  #calculate reward after n steps
+
 ##################################
 ###### the snake environment   ###
 ##################################
@@ -107,6 +109,11 @@ class SwimmerLocomotionEnv(gym.Env):
     #this is for recording the general motion
     self.has_past = False
 
+    #this is for calculating the reward
+    self.prev_x = 0
+    self.prev_y = 0
+    self.vertical_distance_sum = 0
+
   #calculate new pos, calculate distance, reset points
   def update_state(self,y):
     self._x = y[0]
@@ -156,16 +163,28 @@ class SwimmerLocomotionEnv(gym.Env):
     # variance here if we want to control the movement in between 
     y = y[-1,:].tolist()           
     #reward scaling might need to be changed here
-    vertical_distance, min_dist_index, score = self.cal_distances_to_points(y)
-    
-    dist_reward = self.gaussian(vertical_distance/3)
-    reward = dist_reward * score * 10.0
-    if(score < 0):
+
+    vertical_distance, min_dist_index = self.cal_distances_to_points(y)
+    self._start_point_index = min_dist_index + 1
+    self.vertical_distance_sum += vertical_distance
+
+    #here we only calculate the reward every n steps
+    if(self._total_step%reward_tracking_point==0):
+      score = self.cal_score(y)
+      dist_reward = self.gaussian(self.vertical_distance_sum/3/reward_tracking_point, sig = 1)
+      reward = dist_reward * score * 10.0
+      if(score < 0):
+        reward *= 0.7
+      self.prev_x = y[0]
+      self.prev_y = y[1]
+      self.vertical_distance_sum = 0
+
+    else:
       reward = 0
     
     #print(f"distance_to_line: {vertical_distance}, distance_reward: {dist_reward}, score: {score}, min_dist_index: {min_dist_index+1}")
   
-    self._start_point_index = min_dist_index + 1
+    
 
     self.previous_action = action
     self.update_state(y)
@@ -208,12 +227,17 @@ class SwimmerLocomotionEnv(gym.Env):
         new_action[i] = (-max_angle - self._state[i])/time_interval
     new_action = np.clip(new_action, -max_vel, max_vel)
     return new_action
-    
-  #returns relationship between current pos and the path
-  def cal_distances_to_points(self, y):
+  
+  #calculate the mostion score
+  def cal_score(self, y):
     direction_vec = self.get_direction()
     motion_vec = self.get_motion(y)
     score = self.vec_dot(direction_vec, motion_vec)
+    return score
+
+  #returns relationship between current pos and the path
+  def cal_distances_to_points(self, y):
+    
     #print(f"direction_vec:{direction_vec}, motion_vec: {motion_vec}")
     
     #need to handle the special case when start point index is the last point?
@@ -253,19 +277,20 @@ class SwimmerLocomotionEnv(gym.Env):
     v1_vt, v1_hr, v1_dot_vec, v1_dot = self.dist2line(line, vec1)
     
        
-    return v1_vt, min_dist_index, score
+    return v1_vt, min_dist_index
 
   def get_distance_reward(self, y):
     return math.sqrt((y[0] - self._x) * (y[0] - self._x) + (y[1] - self._y) * (y[1] - self._y))
 
   #this returns the vector indicating the motion of the robot
+  #we changed this so that it only calculate the value across a time period
   def get_motion(self, y):
-    return (y[0] - self._x, y[1] - self._y)
+    return (y[0] - self.prev_x, y[1] - self.prev_y)
   
   #return the unit vector inidicating the direction
   def get_direction(self):
-    dir_vec = (self._path[self._start_point_index][0] - self._x, 
-      self._path[self._start_point_index][1] - self._y)
+    dir_vec = (self._path[self._start_point_index][0] - self.prev_x, 
+      self._path[self._start_point_index][1] - self.prev_y)
     return self.vec_normalize(dir_vec)
   
   #only for 2-d vector, normalize it
@@ -274,8 +299,8 @@ class SwimmerLocomotionEnv(gym.Env):
     length = math.sqrt(length)
     return (vec[0]/length, vec[1]/length)
 
-  def gaussian(self, x, m = 0, s = 1):
-    return 1/(math.sqrt(2*pi)*s)*math.e**(-0.5*(float(x-m)/s)**2)
+  def gaussian(self, x, mu = 0, sig = 1):
+    return np.exp(-np.power(x - mu, 2.) / (2 * np.power(sig, 2.)))
   
   def vec_dot(self, vec1, vec2):
     return sum(p*q for p,q in zip(vec1, vec2))

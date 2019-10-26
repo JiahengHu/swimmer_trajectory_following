@@ -154,3 +154,20 @@ The reward scale needs to be changed: the robot gets a lot of reward by going ba
 !!because the robot is too far away from the path
 We need to at least adjust the gaussian threshold
 # because we can't stay close to the track at every single timestamp
+
+#So, how do we design reward?
+
+#Is the S shape generally true for the swimmer?
+
+#LOL I see, the robot gets a large amount of reward by going back and forth at the starting point
+=> simple way to deal with this: generate reward only after n steps (Just to prevent back and forth behavior)
+
+We can complete the cycle by hand in the end
+
+#penalies for not moving a joint
+#remove the distance for the negative reward
+
+max_vel : 
+
+control period with the reward
+
