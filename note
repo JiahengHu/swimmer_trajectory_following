@@ -160,14 +160,19 @@ We need to at least adjust the gaussian threshold
 #Is the S shape generally true for the swimmer?
 
 #LOL I see, the robot gets a large amount of reward by going back and forth at the starting point
-=> simple way to deal with this: generate reward only after n steps (Just to prevent back and forth behavior)
+=> simple way to deal with this: generate reward only after n steps (Just to prevent back and forth behavior) ==>but this leads to cyclic back and forth
 
 We can complete the cycle by hand in the end
 
-#penalies for not moving a joint
-#remove the distance for the negative reward
+
+
+Now the robot is not learning
 
 max_vel : 
 
 control period with the reward
 
+*****penalies for not moving a joint
+*****remove the distance for the negative reward
+*****hierachical RL?
+*****check all the parameters

@@ -34,6 +34,7 @@ param_robot_link_length = 0.3           #this controls the link length of the ro
 
 reward_tracking_point = int(3 / time_interval)  #calculate reward after n steps
 
+num_of_actions = 15  #please make sure that this is odd
 ##################################
 ###### the snake environment   ###
 ##################################
@@ -56,8 +57,7 @@ class SwimmerLocomotionEnv(gym.Env):
     self.use_random_path = random_path
     self.save_trajectory = record_trajectory
     self.n = num_of_links
-    self.action_space = spaces.Box(low = -max_vel, high = max_vel, 
-        shape=(2,), dtype=np.float32) #since we have two joints
+    self.action_space = spaces.MultiDiscrete([num_of_actions, num_of_actions]) #since we have two joints
     
     # state: q1, q2, points, prev_action
     self.observation_space = spaces.Box(low=-np.inf, high=np.inf, shape=
@@ -99,13 +99,13 @@ class SwimmerLocomotionEnv(gym.Env):
     
     for i in range(num_of_points):
       state_0 += self.point_transformation(temp_path[i])
-    self._state = state_0 + [0.0, 0.0] #the previous action
+    self._state = state_0 + [int(num_of_actions/2),int(num_of_actions/2)] #the previous action
   
   def reset_param(self):
     self._episode_ended = False
     self._total_step = 0
     self._start_point_index = 1
-    self.previous_action = [0.0, 0.0]
+    self.previous_action = [int(num_of_actions/2), int(num_of_actions/2)]
     #this is for recording the general motion
     self.has_past = False
 
@@ -132,6 +132,11 @@ class SwimmerLocomotionEnv(gym.Env):
       temp_state += self.point_transformation(self._path[index])
     self._state = np.concatenate([temp_state, self.previous_action])
   
+  def process_action(self, action):
+    step_size = 2.0 * max_vel / num_of_actions
+    mid_action = int(num_of_actions/2)
+    num_action = (action - mid_action)*step_size
+    return num_action
 
   def step(self, action):
     self._total_step+=1
@@ -139,6 +144,10 @@ class SwimmerLocomotionEnv(gym.Env):
     if self._episode_ended:
       return self.reset()
     
+    old_action = action
+
+    action = self.process_action(action)
+
     #make sure that the action is within range
     action = self.check_action_validity(action)
 
@@ -186,7 +195,7 @@ class SwimmerLocomotionEnv(gym.Env):
   
     
 
-    self.previous_action = action
+    self.previous_action = old_action
     self.update_state(y)
     
     if(self._total_step == end_step_num):
@@ -438,12 +447,12 @@ if __name__ == "__main__":
     for step in range(40):
       #random_action[0] *= -1
       #print(random_action)
-      obs, reward, done, _ = environment.step(random_action)
+      obs, reward, done, _ = environment.step(environment.action_space.sample())
       #print(time_step)
       
       cumulative_reward += reward
-      print(obs)
-      print(random_action)
+      # print(obs)
+      # print(random_action)
       if(done):
         obs = environment.reset()
       if(step%100 == 0):
