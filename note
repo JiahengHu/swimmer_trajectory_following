@@ -154,3 +154,23 @@ The reward scale needs to be changed: the robot gets a lot of reward by going ba
 !!because the robot is too far away from the path
 We need to at least adjust the gaussian threshold
 # because we can't stay close to the track at every single timestamp
+
+
+
+#################################################
+Does it still make sense if we have varying time interval?
+I don't think so, the action could simply choose an action that extend the total time
+Maybe it does, as long as we are restricting the total time
+
+
+
+1. Enforce cyclic motion
+	Option 1: I found it very hard to phrase it:
+					- discard the action if it is not its turn
+					- action include freq + amp
+	Option 2: the CMU paper
+	Option 3: cpg
+
+2. Use hierachical model
+	Option 1: sub-policy + general policy
+			[As it seems that the robot is able to learn to move forward]

@@ -24,7 +24,7 @@ end_step_num = 64                       #stop an episode after a given amount of
 dist_threshold = 3                      #the value to determine if the robot has reach the end position
 path_length = 80                        #the length of the randomly generated path
 use_random_state = False                #whether the robot start with a random state initially
-use_random_path = False                  #whether the robot should use a random path
+use_random_path = True                  #whether the robot should use a random path
 easy_path = True                        #whether the robot should use a easy (random) path
 save_trajectory = False                 #this will help keep track of the robot's state
 param_robot_link_length = 0.3           #this controls the link length of the robot
@@ -34,35 +34,39 @@ param_robot_link_length = 0.3           #this controls the link length of the ro
 ###### the snake environment   ###
 ##################################
 
-class SnakeLocomotionEnv(gym.Env):
+####################################
+######  state: q1, q2, p1:5, q1_goal, q1_t, q2_goal, q2_t, q1_phase, q2_phase  #######
+####################################
+
+class SwimmerLocomotionEnv(gym.Env):
 
   def __init__(self, path = None, random_path = use_random_path, use_hard_path = not easy_path, 
     record_trajectory = save_trajectory, 
-    robot_link_length = param_robot_link_length,
-    robot_mass = 0.01, robot_k = 0.01):
+    robot_link_length = param_robot_link_length, robot_k = 1):
         
     # This determines what kind of path we are using
     self.use_hard_path = use_hard_path
     self.use_random_path = random_path
     self.save_trajectory = record_trajectory
     self.n = num_of_links
-    self.action_space = spaces.Box(low = 0.05, high = 2*max_angle, 
-        shape=(1,), dtype=np.float32)
+    self.action_space = spaces.Box(low = -max_vel, high = max_vel, 
+        shape=(2*(num_of_links-1),), dtype=np.float32) #since we have two joints
     
-    #state: q1, q2, x', y', t', q2', points, up/down
+    # state: q1, q2, points, prev_action
     self.observation_space = spaces.Box(low=-np.inf, high=np.inf, shape=
-                    (2*num_of_links + 2*num_of_points+1,), dtype=np.float32)
+                    (4*(num_of_links-1) + 2*num_of_points,), dtype=np.float32)
 
-    self._snake_model = Snake_Robot(num_of_links, 
-      link_length = robot_link_length, mass = robot_mass, k_val = robot_k)
+    self._swimmer_model = Swimmer(num_of_links, 
+      link_length = robot_link_length, k_val = robot_k)
 
     #the path that the robot has to follow, an array of points
     self._path = path         
     self.reset_path()
     self.reset_state()
     self.reset_param()
-    
+  
   #motor input = -amplitude * sin(t*pi/time_interval)
+  #CHANGE
   def action2motor(self, action):
     action = action[0]
     q_prev = self._state[0]
@@ -77,13 +81,11 @@ class SnakeLocomotionEnv(gym.Env):
     return -amplitude,pi/time_interval
   
   #this function assumes 3-link robot
+  #ONLY3LINK
   def get_initial_config(self):
-    #state: q1-qn, dx,dy, u1-un
+    #state: x, y, theta, q1, q2
     n = self.n
-    dx, dy = self.vec_back(self._state[n-1], self._state[n])
-    return np.hstack([self._x, self._y, self._t] + self._state[:n-1]+ 
-                   [dx, dy, self._state[n+1], 0] + self._state[n+2:2*n] )
-  
+    return np.concatenate([[self._x, self._y, self._t], self._state[:n-1]])
   
   #this returns the vector indicating the motion of the robot
   def get_motion(self, y):
@@ -193,15 +195,15 @@ class SnakeLocomotionEnv(gym.Env):
     self._t = 0
     random.seed(datetime.now())
     if(use_random_state):
-        state_0 = [random.uniform(-pi/4, pi/4) for i in range(self.n - 1)] + self.vec_rotate(0,0) + [0]*(self.n - 1)
+        state_0 = [random.uniform(-pi/4, pi/4) for i in range(self.n - 1)]
     else:
       #state_0 = [pi/6, -pi/6]+self.point_transformation([0,0])+[0, 0]
-      state_0 = [0.2, -0.2] + [0]*(self.n-3) + self.vec_rotate(0,0)+ [0, 0] + [0]*(self.n-3)
+      state_0 = [0.4, 0]
     temp_path = self._path[:num_of_points]
     
     for i in range(num_of_points):
       state_0 += self.point_transformation(temp_path[i])
-    self._state = state_0 + [1]
+    self._state = state_0 + state_0[:2] + [0,0] + [1,1] 
   
   def reset_param(self):
     self._episode_ended = False
@@ -324,43 +326,12 @@ class SnakeLocomotionEnv(gym.Env):
     y_rot = y * np.cos(self._t) + x * np.sin(self._t)
     return x_rot, y_rot
 
-  # def render(self):
-  #   for i in range(len(self._path)):
-  #     plt.plot(self._path[i][0], self._path[i][1],  'ro')
-  #   plt.plot(self._x,self._y, 'bo')
-  #   plt.plot(self._x+0.1*cos(self._t),self._y+0.1*sin(self._t),'bo')
-  #   plt.show()
-
-
-  def render(self, mode = 'human'):
-    fig = plt.figure()
-    plot = fig.add_subplot(111)
+  def render(self):
     for i in range(len(self._path)):
-      plot.plot(self._path[i][0], self._path[i][1],  'ro')
-    plot.plot(self._x,self._y, 'bo')
-    plot.plot(self._x+0.1*cos(self._t),self._y+0.1*sin(self._t),'bo')
-    if(mode=='human'):
-      plt.show()
-    else:
-      return self.fig2data(fig)
-
-  def fig2data(self, fig):
-    """
-    @brief Convert a Matplotlib figure to a 4D numpy array with RGBA channels and return it
-    @param fig a matplotlib figure
-    @return a numpy 3D array of RGBA values
-    """
-    # draw the renderer
-    fig.canvas.draw()
- 
-    # Get the RGBA buffer from the figure
-    w,h = fig.canvas.get_width_height()
-    buf = np.frombuffer(fig.canvas.tostring_rgb(), dtype=np.uint8)
-    buf = buf.reshape(h, w, 3)
-    #print(np.sum(buf!=255))
-    # canvas.tostring_argb give pixmap in ARGB mode. Roll the ALPHA channel to have it in RGBA mode
-    #buf = np.roll(buf, 3, axis = 2)
-    return buf
+      plt.plot(self._path[i][0], self._path[i][1],  'ro')
+    plt.plot(self._x,self._y, 'bo')
+    plt.plot(self._x+0.1*cos(self._t),self._y+0.1*sin(self._t),'bo')
+    plt.show()
   
   def draw_trajectory(self, complicate = True):
     self._snake_model.plot_image(self.past_traj, self.past_t, show_pos = complicate, show_vel = complicate)

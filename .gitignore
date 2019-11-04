@@ -1,2 +1,4 @@
-*.pyc
-logs/*
+*
+
+!snake_env
+!*.py

@@ -10,7 +10,7 @@ import math
 from matplotlib import animation
 import time
 
-debug_snake_time = True
+debug_snake_time = False
 
 class Snake_Robot:
 
@@ -135,7 +135,7 @@ class Snake_Robot:
 
         M = LM.mass_matrix_full.simplify().subs(dummy_dict)                                  # Substitute into the mass matrix 
         F = LM.forcing_full.simplify().subs(dummy_dict)                                      # Substitute into the forcing vector
-        print(M)
+        #print(M)
         # print(F)
         self.M = M
         self.F = F

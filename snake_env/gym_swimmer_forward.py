@@ -59,9 +59,9 @@ class SwimmerLocomotionEnv(gym.Env):
     self.action_space = spaces.Box(low = -max_vel, high = max_vel, 
         shape=(2,), dtype=np.float32) #since we have two joints
     
-    # state: q1, q2, points, prev_action
+    # state: q1, q2, theta, prev_action
     self.observation_space = spaces.Box(low=-np.inf, high=np.inf, shape=
-                    (num_of_links + 2*num_of_points + 1,), dtype=np.float32)
+                    (num_of_links + 2,), dtype=np.float32)
 
     self._swimmer_model = Swimmer(num_of_links, 
       link_length = robot_link_length, k_val = robot_k)
@@ -91,14 +91,14 @@ class SwimmerLocomotionEnv(gym.Env):
     self._t = 0
     random.seed(datetime.now())
     if(use_random_state):
-        state_0 = [random.uniform(-pi/4, pi/4) for i in range(self.n - 1)]
+        state_0 = [random.uniform(-pi/4, pi/4) for i in range(self.n - 1)] +[self._t]
     else:
       #state_0 = [pi/6, -pi/6]+self.point_transformation([0,0])+[0, 0]
-      state_0 = [0.4, 0]
+      state_0 = [0.4, 0, self._t]
     temp_path = self._path[:num_of_points]
     
-    for i in range(num_of_points):
-      state_0 += self.point_transformation(temp_path[i])
+    # for i in range(num_of_points):
+    #   state_0 += self.point_transformation(temp_path[i])
     self._state = state_0 + [0.0, 0.0] #the previous action
   
   def reset_param(self):
@@ -126,10 +126,13 @@ class SwimmerLocomotionEnv(gym.Env):
     #q1, q2
     for i in range(self.n - 1):
         temp_state.append(y[i+3])
+
+    temp_state.append(y[2])
+
     
-    for i in range (num_of_points):
-      index = min(len(self._path)-1,self._start_point_index+i)
-      temp_state += self.point_transformation(self._path[index])
+    # for i in range (num_of_points):
+    #   index = min(len(self._path)-1,self._start_point_index+i)
+    #   temp_state += self.point_transformation(self._path[index])
     self._state = np.concatenate([temp_state, self.previous_action])
   
 
@@ -141,6 +144,8 @@ class SwimmerLocomotionEnv(gym.Env):
     
     #make sure that the action is within range
     action = self.check_action_validity(action)
+
+    action_size = np.sum(action*action) / 10
 
     initial_config = self.get_initial_config()
 
@@ -159,31 +164,34 @@ class SwimmerLocomotionEnv(gym.Env):
         self.past_t = np.concatenate((self.past_t, t + time_interval*self.time_counter))
         self.time_counter +=1
 
-    # assume we only need the last row, can also optimize the 
-    # variance here if we want to control the movement in between 
-    y = y[-1,:].tolist()           
-    #reward scaling might need to be changed here
+    y = y[-1,:].tolist()   
 
-    vertical_distance, min_dist_index = self.cal_distances_to_points(y)
-    self._start_point_index = min_dist_index + 1
-    self.vertical_distance_sum += vertical_distance
 
-    #here we only calculate the reward every n steps
-    if(self._total_step%reward_tracking_point==0):
-      score = self.cal_score(y)
-      dist_reward = self.gaussian(self.vertical_distance_sum/3/reward_tracking_point, sig = 1)
-      reward = dist_reward * score * 10.0
-      if(score < 0):
-        reward *= 0.7
-      self.prev_x = y[0]
-      self.prev_y = y[1]
-      self.vertical_distance_sum = 0
+    #this is just for testing if it can locomote if the target is just to move forward
+    reward = (self.prev_y - y[1])*100 + action_size
+    self.prev_x = y[0]
+    self.prev_y = y[1]
 
-    else:
-      reward = 0
-    
-    #print(f"distance_to_line: {vertical_distance}, distance_reward: {dist_reward}, score: {score}, min_dist_index: {min_dist_index+1}")
-  
+
+    # vertical_distance, min_dist_index = self.cal_distances_to_points(y)
+    # self._start_point_index = min_dist_index + 1
+    # self.vertical_distance_sum += vertical_distance
+
+    # #here we only calculate the reward every n steps
+    # if(self._total_step%reward_tracking_point==0):
+    #   score = self.cal_score(y)
+    #   dist_reward = self.gaussian(self.vertical_distance_sum/3/reward_tracking_point, sig = 1)
+    #   reward = dist_reward * score * 10.0
+    #   if(score < 0):
+    #     reward *= 0.7
+    #   self.prev_x = y[0]
+    #   self.prev_y = y[1]
+    #   self.vertical_distance_sum = 0
+
+    # else:
+    #   reward = 0
+
+      
     
 
     self.previous_action = action
@@ -193,10 +201,10 @@ class SwimmerLocomotionEnv(gym.Env):
       self._episode_ended = True
       end_early = False
       
-    #end the episode if it is close enough to the target 
-    if ( self._x - self._path[-1][0])**2 + ( self._y - self._path[-1][1])**2 < dist_threshold :
-      self._episode_ended = True
-      end_early = True
+    # #end the episode if it is close enough to the target 
+    # if ( self._x - self._path[-1][0])**2 + ( self._y - self._path[-1][1])**2 < dist_threshold :
+    #   self._episode_ended = True
+    #   end_early = True
     
     if self._episode_ended:
       if end_early:
