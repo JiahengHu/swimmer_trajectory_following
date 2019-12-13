@@ -114,6 +114,11 @@ class TRPO(ActorCriticRLModel):
 
             self.nworkers = MPI.COMM_WORLD.Get_size()
             self.rank = MPI.COMM_WORLD.Get_rank()
+
+            #disable tensorboard log for other threads
+            if(self.rank!=0):
+                self.tensorboard_log = None
+
             np.set_printoptions(precision=3)
 
             self.graph = tf.Graph()
@@ -488,6 +493,10 @@ class TRPO(ActorCriticRLModel):
         return self
 
     def save(self, save_path, cloudpickle=False):
+        #don't save if not the first agent
+        if self.rank!=0:
+            return
+            
         if self.using_gail and self.expert_dataset is not None:
             # Exit processes to pickle the dataset
             self.expert_dataset.prepare_pickling()

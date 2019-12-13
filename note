@@ -174,3 +174,172 @@ Maybe it does, as long as we are restricting the total time
 2. Use hierachical model
 	Option 1: sub-policy + general policy
 			[As it seems that the robot is able to learn to move forward]
+
+
+
+TODO:
+1. Add ddpg-phase (Done)
+2. Test with pure ddpg (Done)
+3. Examine the environment (Done)
+4. Look at the hopper environment (Done)
+
+Other problems encountered:
+1. Why is the tf-agent running so slowly?
+2. Reward for period shaping
+
+Howie:
+1. Learning the bounding box (what should be the start and end phase of the robot?)
+2. （With different terrains）
+
+
+For the phase:
+q1 - q2?
+Then a delta q that signifies the change of this
+
+I actually feels like a model based method could work
+V(q1, q2, theta)
+Transition
+
+
+
+For Shape Completion:
+Jaccard Full vs
+Jaccard Exact
+
+
+
+Generating Graphs: write the code in pytorch
+Look into conditional GAN
+
+See how the periodic training goes, check the action space
+
+Generat the data and do comparison for the shape completion
+
+
+
+
+
+
+Arthum:
+Nov. 6
+The effort of Mother
+Different art appeals to different people
+
+The house approach by car
+
+The chair and table: are they part of the house?
+
+Does the critic makes the situation worse?
+
+Nov. 14
+Not clear what the figures are
+
+
+
+
+Try:
+reward to the first link
+theta to the first link
+
+Fix a joint, train the other joint
+
+Train togather first, and then fix one move another
+
+
+Maybe a shorter episode while fixing the start / end position will help?
+How about just move the joint to the desired position in the end? (No that won't work)
+
+
+1. Fix a sin wave
+2. Advantage
+3. Multi-agent way
+4. Iterative training
+5. Sequential motion decision
+
+1. Retrain the openai swimmer (maybe do experiments on that)
+
+
+
+in swimmer-v2, any deep RL method provides a deceptive gradient information which is detrimental to convergence towards efficient actor parameters
+
+TRPO significantly outperforms
+all other algorithms. Due to the dynamics of the water-like
+environment, a local optimum for the system is to curl up and
+flail without proper swimming. However, this corresponds
+to a return of ∼130. 
+
+
+Speak about:
+What does it take to train a swimmer
+
+(Get a visualization for the environment)
+
+Train and see how it works on the actual trajectory following
+Debug about the distance reward
+
+1. Stuck at the planned "first step"
+2. Why this problem is so hard (i.e. what are the methods tried) (show the result)
+3. Eventual method to solve the problem
+	-Discuss about why this method solves the problem better
+4. Conclusion:
+	RL is still far from perfect
+	Huge space in exploring why something learn / didn't learn
+
+Conclusion:
+We found a learning algorithm that can get a swimmer robot to locomote efficiently 
+
+Extension:
+1. Train the trajectory follower based on sin wave?
+2. Train the trajectory follower based on ERL
+
+
+Evolution algo:
+1. temporal credit assignment with sparse rewards 
+2. lack of effective exploration
+3. brittle convergence properties
+4. 
+
+DRL:
+1. optimization of a large number of parameters
+
+Something to think about: temporal difference
+
+Adversirial RL??
+
+
+Fix the replay buffer => ddpg see what happens
+Find the region (the range of action space)
+curvature plot => the closer to the center
+
+See if evolutionary algo works on our swimmer
+
+!thinks about how to make sure that the start and end poses are the same
+
+
+Dec 9.
+Note:
+The action is essentially binary
+
+#I think that with the baseline the snake is unable to go down...
+
+
+
+OBS: with ddpg expert traj, it still converges to not moving
+	tried: demo_buffer + exploration
+		   demo_bufeer only (varing freq vs only amplitude)
+
+
+Performance tied to baseline that we set
+- sample baseline
+- 
+
+Find the optimal action space
+- 
+- 
+
+Try the other kinematic model
+
+
+Hierachical RL:
+Having multi-baseline
+Train based on that

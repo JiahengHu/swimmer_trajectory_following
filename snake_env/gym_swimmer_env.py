@@ -9,7 +9,10 @@ import matplotlib.pyplot as plt
 import math
 import random
 import os
-from snake_env.swimmer_lib import Swimmer
+try:
+  from snake_env.swimmer_lib import Swimmer
+except:
+  from swimmer_lib import Swimmer
 
 
 ##################################
@@ -17,22 +20,24 @@ from snake_env.swimmer_lib import Swimmer
 ##################################
 
 num_of_links = 3                        #the number of links of the snake robot
-num_of_points = 3                       #the number of points to look ahead
+num_of_points = 1                       #the number of points to look ahead
 max_angle = 1.3                         #the range of the joint angle, 75 degree (maybe we should have it in the lib)
 max_vel   = 0.6                         #the maximum velocity allowed (since we are using velocity control)
-time_interval = 1.0/2                 #the length of each episode of action
-end_step_time = 50
+time_interval = 0.04                    #the length of each episode of action
+end_step_time = 40
 end_step_num = end_step_time/time_interval                     #stop an episode after a given amount of time
-dist_threshold = 3                      #the value to determine if the robot has reach the end position
+dist_threshold = 0.5                    #the value to determine if the robot has reach the end position
 path_length = 80                        #the length of the randomly generated path
 use_random_state = False                #whether the robot start with a random state initially
-use_random_path = True                  #whether the robot should use a random path
+use_random_path = False                 #whether the robot should use a random path
 easy_path = True                        #whether the robot should use a easy (random) path
 save_trajectory = False                 #this will help keep track of the robot's state
 param_robot_link_length = 0.3           #this controls the link length of the robot
 
+#calculate reward everytime
+reward_tracking_point = 1 #int(3 / time_interval)  #calculate reward after n steps
 
-reward_tracking_point = int(3 / time_interval)  #calculate reward after n steps
+include_prev_action = False
 
 ##################################
 ###### the snake environment   ###
@@ -59,9 +64,12 @@ class SwimmerLocomotionEnv(gym.Env):
     self.action_space = spaces.Box(low = -max_vel, high = max_vel, 
         shape=(2,), dtype=np.float32) #since we have two joints
     
+    num_of_obs = num_of_links + 2*num_of_points - 1
+    if include_prev_action:
+      num_of_obs += 2
     # state: q1, q2, points, prev_action
     self.observation_space = spaces.Box(low=-np.inf, high=np.inf, shape=
-                    (num_of_links + 2*num_of_points + 1,), dtype=np.float32)
+                    (num_of_obs,), dtype=np.float32)
 
     self._swimmer_model = Swimmer(num_of_links, 
       link_length = robot_link_length, k_val = robot_k)
@@ -94,12 +102,14 @@ class SwimmerLocomotionEnv(gym.Env):
         state_0 = [random.uniform(-pi/4, pi/4) for i in range(self.n - 1)]
     else:
       #state_0 = [pi/6, -pi/6]+self.point_transformation([0,0])+[0, 0]
-      state_0 = [0.4, 0]
-    temp_path = self._path[:num_of_points]
+      state_0 = [0 , -0.5]
+    temp_path = self._path[1:num_of_points+1]
     
     for i in range(num_of_points):
       state_0 += self.point_transformation(temp_path[i])
-    self._state = state_0 + [0.0, 0.0] #the previous action
+    self._state = state_0
+    if include_prev_action:
+      self._state += [0.0, 0.0] #the previous action
   
   def reset_param(self):
     self._episode_ended = False
@@ -113,6 +123,11 @@ class SwimmerLocomotionEnv(gym.Env):
     self.prev_x = 0
     self.prev_y = 0
     self.vertical_distance_sum = 0
+
+    vec_to_point = (0 - self._path[self._start_point_index][0], 
+      0 - self._path[self._start_point_index][1])
+    dist_to_point = self.vec_len(vec_to_point)
+    self.prev_dist_to_point = dist_to_point
 
   #calculate new pos, calculate distance, reset points
   def update_state(self,y):
@@ -130,7 +145,9 @@ class SwimmerLocomotionEnv(gym.Env):
     for i in range (num_of_points):
       index = min(len(self._path)-1,self._start_point_index+i)
       temp_state += self.point_transformation(self._path[index])
-    self._state = np.concatenate([temp_state, self.previous_action])
+    self._state = temp_state
+    if include_prev_action:
+      self._state = np.concatenate([self._state, self.previous_action])
   
 
   def step(self, action):
@@ -164,23 +181,25 @@ class SwimmerLocomotionEnv(gym.Env):
     y = y[-1,:].tolist()           
     #reward scaling might need to be changed here
 
-    vertical_distance, min_dist_index = self.cal_distances_to_points(y)
-    self._start_point_index = min_dist_index + 1
-    self.vertical_distance_sum += vertical_distance
+    # vertical_distance, min_dist_index = self.cal_distances_to_points(y)
+    # self._start_point_index = min_dist_index + 1
+    # self.vertical_distance_sum += vertical_distance
 
-    #here we only calculate the reward every n steps
-    if(self._total_step%reward_tracking_point==0):
-      score = self.cal_score(y)
-      dist_reward = self.gaussian(self.vertical_distance_sum/3/reward_tracking_point, sig = 1)
-      reward = dist_reward * score * 10.0
-      if(score < 0):
-        reward *= 0.7
-      self.prev_x = y[0]
-      self.prev_y = y[1]
-      self.vertical_distance_sum = 0
+    # #here we only calculate the reward every n steps
+    # if(self._total_step%reward_tracking_point==0):
+    #   score = self.cal_score(y)
+    #   dist_reward = self.gaussian(self.vertical_distance_sum/3/reward_tracking_point, sig = 1)
+    #   reward = dist_reward * score * 10.0
+    #   if(score < 0):
+    #     reward *= 0.7
+    #   self.prev_x = y[0]
+    #   self.prev_y = y[1]
+    #   self.vertical_distance_sum = 0
 
-    else:
-      reward = 0
+    # else:
+    #   reward = 0
+
+    reward = self.update_index(y)
     
     #print(f"distance_to_line: {vertical_distance}, distance_reward: {dist_reward}, score: {score}, min_dist_index: {min_dist_index+1}")
   
@@ -234,6 +253,24 @@ class SwimmerLocomotionEnv(gym.Env):
     motion_vec = self.get_motion(y)
     score = self.vec_dot(direction_vec, motion_vec)
     return score
+
+  def update_index(self, y):
+    vec_to_point = (y[0]- self._path[self._start_point_index][0], 
+      y[1]- self._path[self._start_point_index][1])
+    dist_to_point = self.vec_len(vec_to_point)
+    reward = (self.prev_dist_to_point - dist_to_point)*30
+    self.prev_dist_to_point = dist_to_point
+    #print(reward)
+
+    if(dist_to_point < dist_threshold):
+      self._start_point_index+=1
+      reward += 2
+      new_vec = (y[0]- self._path[self._start_point_index][0], 
+      y[1]- self._path[self._start_point_index][1])
+      self.prev_dist_to_point = self.vec_len(new_vec)
+
+    return reward
+
 
   #returns relationship between current pos and the path
   def cal_distances_to_points(self, y):
@@ -429,27 +466,39 @@ class SwimmerLocomotionEnv(gym.Env):
 if __name__ == "__main__":
     random_action = np.asarray([0.2, -0.2])
     #path = [(0,0),(-2,-2),(-4,-4),(-6,-6),(-8,-8),(-9,-9)]
-    path = [(-2*i,-2*i) for i in range(10)]
+    path = [(-0.2*i, 0) for i in range(10)]
     environment = SwimmerLocomotionEnv(path, robot_link_length = 0.3, record_trajectory = True )
     obs = environment.reset()
     #print(time_step)
     cumulative_reward = 0
     print(obs)
-    for step in range(40):
+
+    dist_list = []
+    print(environment._start_point_index)
+    freq = 1#1 
+    amp = 0.6#0.6
+    for step in range(1000):
       #random_action[0] *= -1
       #print(random_action)
+      random_action = np.asarray([np.cos(step*time_interval*freq), np.sin(step*time_interval*freq)]) * amp
       obs, reward, done, _ = environment.step(random_action)
       #print(time_step)
-      
+      dist_list.append(environment.prev_dist_to_point)
       cumulative_reward += reward
       print(obs)
       print(random_action)
+      print(environment._start_point_index)
       if(done):
         obs = environment.reset()
-      if(step%100 == 0):
-        random_action*=-1
-        environment.render()
+      # if(step%100 == 0):
+      #   random_action*=-1
+      #   environment.render()
       #environment.write_csv()
+
+    lines = plt.plot(range(1000), dist_list)
+    lab = plt.xlabel('time')
+    leg = plt.legend('distance')
+    plt.show()
 
     environment.draw_trajectory(complicate = True)
     #print(time_step)

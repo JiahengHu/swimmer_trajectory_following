@@ -1,5 +1,5 @@
 from stable_baselines import PPO2
-from snake_env.gym_swimmer_forward import SwimmerLocomotionEnv
+from snake_env.gym_swimmer_forward_simple import SwimmerLocomotionEnv
 import numpy as np
 fixed_path = [(-0.2*i,-0.2*i) for i in range(30)]
 fixed_path = [(0,-0.2*i) for i in range(30)]
@@ -10,7 +10,7 @@ robot_k = 1.0
 robot_link_length = 0.3
 
 #these are for testing
-model = PPO2.load("ppo2_swimmer")
+model = PPO2.load("ppo2_swimmer_simple")
 env = SwimmerLocomotionEnv(
 		path = fixed_path, 
 		random_path = use_random_path, 
@@ -31,9 +31,9 @@ for i in range(10000):
     # print(obs)
     # print(rewards)
     total_reward+=rewards
-    if(i%100==0):
-    	env.render()
-    	pass
+    # if(i%100==0):
+    # 	env.render()
+    # 	pass
     	
     if(dones):
     	break

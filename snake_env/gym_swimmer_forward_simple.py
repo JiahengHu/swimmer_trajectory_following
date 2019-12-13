@@ -1,6 +1,6 @@
-###########################
-##  Using position control
-###########################
+# This is the version where we are only considering one joint motion
+
+
 
 import gym
 from gym import spaces
@@ -70,8 +70,8 @@ class SwimmerLocomotionEnv(gym.Env):
     self.use_random_path = random_path
     self.save_trajectory = record_trajectory
     self.n = num_of_links
-    self.action_space = spaces.Box(low = -max_angle, high = max_angle, 
-        shape=(2,), dtype=np.float32) #since we have two joints
+    self.action_space = spaces.Box(low = -max_vel, high = max_vel, 
+        shape=(1,), dtype=np.float32) #since we have two joints
     
     # state: q1, q2, theta, prev_action
     obs_dim = num_of_links
@@ -170,6 +170,9 @@ class SwimmerLocomotionEnv(gym.Env):
     
     if self._episode_ended:
       return self.reset()
+
+    #we assume the motion of the firts joint
+    action = [np.cos(self._total_step*time_interval)*max_vel,action[0]]
     
     #make sure that the action is within range
     action = self.check_action_validity(action)
@@ -260,20 +263,15 @@ class SwimmerLocomotionEnv(gym.Env):
   #check whether the action is valid, if not then clip it to the correct value
   #ONLY3LINK
   def check_action_validity(self, action):
-    q0 = self._state[0]
-    q1 = self._state[1]
-    d0 = action[0] - q0
-    d1 = action[1] - q1
-    if(d0>0):
-      a0 = np.min([max_vel, d0/time_interval])
-    else:
-      a0 = np.max([-max_vel, d0/time_interval])
-    if(d1>0):
-      a1 = np.min([max_vel, d1/time_interval])
-    else:
-      a1 = np.max([-max_vel, d1/time_interval])
-
-    new_action = np.asarray([a0,a1])
+    new_action = np.asarray(action)
+    q_displacement = time_interval*new_action
+    q_end = self._state[:2] + q_displacement
+    for i in range(2):
+      if(q_end[i] > max_angle):
+        new_action[i] = (max_angle - self._state[i])/time_interval
+      elif(q_end[i] < -max_angle):
+        new_action[i] = (-max_angle - self._state[i])/time_interval
+    new_action = np.clip(new_action, -max_vel, max_vel)
     return new_action
   
   #calculate the mostion score
@@ -485,12 +483,8 @@ if __name__ == "__main__":
     print(obs)
     delta_list = []
     freq = 1 
-    random_action = np.asarray([0, 0])
     for step in range(1000):
-      
-      if(step%100 == 0):
-        random_action*=-1
-      #random_action = np.asarray([np.cos(step*time_interval*freq), np.sin(step*time_interval*freq)]) * 0.6
+      random_action = np.asarray([np.cos(step*time_interval*freq), np.sin(step*time_interval*freq)]) * 0.6
       print(random_action)
       obs, reward, done, _ = environment.step(random_action)
       #print(reward)

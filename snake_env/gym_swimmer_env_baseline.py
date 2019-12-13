@@ -1,7 +1,3 @@
-###########################
-##  Using position control
-###########################
-
 import gym
 from gym import spaces
 
@@ -19,7 +15,6 @@ except:
   from swimmer_lib import Swimmer
 
 
-
 ##################################
 ###### define hyperparameters  ###
 ##################################
@@ -29,24 +24,21 @@ num_of_points = 3                       #the number of points to look ahead
 max_angle = 1.3                         #the range of the joint angle, 75 degree (maybe we should have it in the lib)
 max_vel   = 0.6                         #the maximum velocity allowed (since we are using velocity control)
 time_interval = 0.04                    #the length of each episode of action
-end_step_time = 40
-end_step_num = end_step_time/time_interval  #stop an episode after a given amount of time
-dist_threshold = 3                      #the value to determine if the robot has reach the end position
+end_step_time = 100
+end_step_num = end_step_time/time_interval                     #stop an episode after a given amount of time
+dist_threshold = 0.2                    #the value to determine if the robot has reach the end position
 path_length = 80                        #the length of the randomly generated path
-use_random_state = False                 #whether the robot start with a random state initially
-use_random_path = True                  #whether the robot should use a random path
+use_random_state = False                #whether the robot start with a random state initially
+use_random_path = False                 #whether the robot should use a random path
 easy_path = True                        #whether the robot should use a easy (random) path
 save_trajectory = False                 #this will help keep track of the robot's state
 param_robot_link_length = 0.3           #this controls the link length of the robot
 
-
-reward_tracking_point = int(3 / time_interval)  #calculate reward after n steps
+#calculate reward everytime
+reward_tracking_point = 1 #int(3 / time_interval)  #calculate reward after n steps
 
 include_prev_action = False
 include_time = True
-time_period = 2*np.pi
-
-#Add a phase parameter directly？
 
 ##################################
 ###### the snake environment   ###
@@ -59,6 +51,11 @@ time_period = 2*np.pi
 
 ######  function with ONLY3LINK tag only works for 3link robot  ######
 
+def default_vel(time):
+  freq = 1
+  amp = 0.6
+  return np.asarray([np.cos(time*freq), np.sin(time*freq)]) * amp
+
 class SwimmerLocomotionEnv(gym.Env):
 
   def __init__(self, path = None, random_path = use_random_path, use_hard_path = not easy_path, 
@@ -70,18 +67,17 @@ class SwimmerLocomotionEnv(gym.Env):
     self.use_random_path = random_path
     self.save_trajectory = record_trajectory
     self.n = num_of_links
-    self.action_space = spaces.Box(low = -max_angle, high = max_angle, 
+    self.action_space = spaces.Box(low = -max_vel/5, high = max_vel/5, 
         shape=(2,), dtype=np.float32) #since we have two joints
     
-    # state: q1, q2, theta, prev_action
-    obs_dim = num_of_links
-    if(include_prev_action):
-      obs_dim +=2
+    num_of_obs = num_of_links + 2*num_of_points - 1
+    if include_prev_action:
+      num_of_obs += 2
     if(include_time):
-      obs_dim +=1
+      num_of_obs +=1
+    # state: q1, q2, points, prev_action
     self.observation_space = spaces.Box(low=-np.inf, high=np.inf, shape=
-                    (obs_dim,), dtype=np.float32)
-
+                    (num_of_obs,), dtype=np.float32)
 
     self._swimmer_model = Swimmer(num_of_links, 
       link_length = robot_link_length, k_val = robot_k)
@@ -111,19 +107,19 @@ class SwimmerLocomotionEnv(gym.Env):
     self._t = 0
     random.seed(datetime.now())
     if(use_random_state):
-        state_0 = [random.uniform(-pi/4, pi/4) for i in range(self.n - 1)] + [self._t]
+        state_0 = [random.uniform(-pi/4, pi/4) for i in range(self.n - 1)]
     else:
       #state_0 = [pi/6, -pi/6]+self.point_transformation([0,0])+[0, 0]
-      state_0 = [0, -0.5, self._t]
-    temp_path = self._path[:num_of_points]
+      state_0 = [0 , -0.5]
+    temp_path = self._path[1:num_of_points+1]
     
-    # for i in range(num_of_points):
-    #   state_0 += self.point_transformation(temp_path[i])
+    for i in range(num_of_points):
+      state_0 += self.point_transformation(temp_path[i])
     self._state = state_0
-    if(include_prev_action):
-      self._state = self._state + [0.0, 0.0] #the previous action
+    if include_prev_action:
+      self._state += [0.0, 0.0] #the previous action
     if(include_time):
-      self._state = self._state + [self._total_step*time_interval%time_period]
+      self._state = self._state + [self._total_step*time_interval]
   
   def reset_param(self):
     self._episode_ended = False
@@ -138,6 +134,11 @@ class SwimmerLocomotionEnv(gym.Env):
     self.prev_y = 0
     self.vertical_distance_sum = 0
 
+    vec_to_point = (0 - self._path[self._start_point_index][0], 
+      0 - self._path[self._start_point_index][1])
+    dist_to_point = self.vec_len(vec_to_point)
+    self.prev_dist_to_point = dist_to_point
+
   #calculate new pos, calculate distance, reset points
   def update_state(self,y):
     self._x = y[0]
@@ -150,19 +151,15 @@ class SwimmerLocomotionEnv(gym.Env):
     #q1, q2
     for i in range(self.n - 1):
         temp_state.append(y[i+3])
-
-    temp_state.append(y[2])
-
     
-    # for i in range (num_of_points):
-    #   index = min(len(self._path)-1,self._start_point_index+i)
-    #   temp_state += self.point_transformation(self._path[index])
+    for i in range (num_of_points):
+      index = min(len(self._path)-1,self._start_point_index+i)
+      temp_state += self.point_transformation(self._path[index])
     self._state = temp_state
-    if(include_prev_action):
+    if include_prev_action:
       self._state = np.concatenate([self._state, self.previous_action])
     if(include_time):
-      self._state = np.concatenate([self._state, [self._total_step*time_interval%time_period]])
-    
+      self._state = self._state + [self._total_step*time_interval]
   
 
   def step(self, action):
@@ -173,8 +170,6 @@ class SwimmerLocomotionEnv(gym.Env):
     
     #make sure that the action is within range
     action = self.check_action_validity(action)
-
-    action_size = np.sum(action*action) / 10
 
     initial_config = self.get_initial_config()
 
@@ -193,20 +188,10 @@ class SwimmerLocomotionEnv(gym.Env):
         self.past_t = np.concatenate((self.past_t, t + time_interval*self.time_counter))
         self.time_counter +=1
 
-    y = y[-1,:].tolist()   
-
-    ctrl_cost_coeff = 0.0001
-    #here the 10 is a scaling factor
-    reward_fwd = (self.prev_x - y[0]) / time_interval * 10
-    #penalize moving a joint too much
-    reward_ctrl = - ctrl_cost_coeff * np.square(action).sum()
-    reward = reward_fwd + reward_ctrl
-
-
-    #this is just for testing if it can locomote if the target is just to move forward
-    self.prev_x = y[0]
-    self.prev_y = y[1]
-
+    # assume we only need the last row, can also optimize the 
+    # variance here if we want to control the movement in between 
+    y = y[-1,:].tolist()           
+    #reward scaling might need to be changed here
 
     # vertical_distance, min_dist_index = self.cal_distances_to_points(y)
     # self._start_point_index = min_dist_index + 1
@@ -226,7 +211,10 @@ class SwimmerLocomotionEnv(gym.Env):
     # else:
     #   reward = 0
 
-      
+    reward = self.update_index(y)
+    
+    #print(f"distance_to_line: {vertical_distance}, distance_reward: {dist_reward}, score: {score}, min_dist_index: {min_dist_index+1}")
+  
     
 
     self.previous_action = action
@@ -236,10 +224,10 @@ class SwimmerLocomotionEnv(gym.Env):
       self._episode_ended = True
       end_early = False
       
-    # #end the episode if it is close enough to the target 
-    # if ( self._x - self._path[-1][0])**2 + ( self._y - self._path[-1][1])**2 < dist_threshold :
-    #   self._episode_ended = True
-    #   end_early = True
+    #end the episode if it is close enough to the target 
+    if ( self._x - self._path[-1][0])**2 + ( self._y - self._path[-1][1])**2 < dist_threshold :
+      self._episode_ended = True
+      end_early = True
     
     if self._episode_ended:
       if end_early:
@@ -260,20 +248,17 @@ class SwimmerLocomotionEnv(gym.Env):
   #check whether the action is valid, if not then clip it to the correct value
   #ONLY3LINK
   def check_action_validity(self, action):
-    q0 = self._state[0]
-    q1 = self._state[1]
-    d0 = action[0] - q0
-    d1 = action[1] - q1
-    if(d0>0):
-      a0 = np.min([max_vel, d0/time_interval])
-    else:
-      a0 = np.max([-max_vel, d0/time_interval])
-    if(d1>0):
-      a1 = np.min([max_vel, d1/time_interval])
-    else:
-      a1 = np.max([-max_vel, d1/time_interval])
+    new_action = np.asarray(action)
+    new_action += default_vel(self._state[-1])
 
-    new_action = np.asarray([a0,a1])
+    q_displacement = time_interval*new_action
+    q_end = self._state[:2] + q_displacement
+    for i in range(2):
+      if(q_end[i] > max_angle):
+        new_action[i] = (max_angle - self._state[i])/time_interval
+      elif(q_end[i] < -max_angle):
+        new_action[i] = (-max_angle - self._state[i])/time_interval
+    new_action = np.clip(new_action, -max_vel, max_vel)
     return new_action
   
   #calculate the mostion score
@@ -282,6 +267,24 @@ class SwimmerLocomotionEnv(gym.Env):
     motion_vec = self.get_motion(y)
     score = self.vec_dot(direction_vec, motion_vec)
     return score
+
+  def update_index(self, y):
+    vec_to_point = (y[0]- self._path[self._start_point_index][0], 
+      y[1]- self._path[self._start_point_index][1])
+    dist_to_point = self.vec_len(vec_to_point)
+    reward = (self.prev_dist_to_point - dist_to_point)*30
+    self.prev_dist_to_point = dist_to_point
+    #print(reward)
+
+    if(dist_to_point < dist_threshold):
+      self._start_point_index+=1
+      reward += 2
+      new_vec = (y[0]- self._path[self._start_point_index][0], 
+      y[1]- self._path[self._start_point_index][1])
+      self.prev_dist_to_point = self.vec_len(new_vec)
+
+    return reward
+
 
   #returns relationship between current pos and the path
   def cal_distances_to_points(self, y):
@@ -408,10 +411,10 @@ class SwimmerLocomotionEnv(gym.Env):
     return path
 
   #should be easier for the robot to follow, espycially when the robot don't use random state
-  def generate_easy_path(self, n, point_dist = 0.2):
+  def generate_easy_path(self, n, point_dist = 0.1):
     random.seed(datetime.now())
     path = [(0,0)]
-    angle = random.uniform(pi,3*pi/4.0)
+    angle = random.uniform(7*pi/8,9*pi/8)
     x = cos(angle)*point_dist
     y = sin(angle)*point_dist
     path.append((x,y))
@@ -424,15 +427,25 @@ class SwimmerLocomotionEnv(gym.Env):
       prev_theta = angle
     return path
   
-  def render(self, mode = 'human'):
+  def render(self, mode = 'human', save = False, save_id = None):
     fig = plt.figure()
     plot = fig.add_subplot(111)
     for i in range(len(self._path)):
       plot.plot(self._path[i][0], self._path[i][1],  'ro')
     plot.plot(self._x,self._y, 'bo')
     plot.plot(self._x+0.1*cos(self._t),self._y+0.1*sin(self._t),'bo')
+    plt.xlim(-1.5, 0.5)     # set the xlim to left, right
+    plt.ylim(-1, 1)
     if(mode=='human'):
-      plt.show()
+      if(save):
+        if(save_id is not None):
+          num = str(save_id).rjust(4,'0')
+          plt.savefig('img/frame'+num+'.png')
+        else:
+          print("pass in a save id!")
+          exit()
+      else:
+        plt.show()
     else:
       return self.fig2data(fig)
 
@@ -471,43 +484,45 @@ class SwimmerLocomotionEnv(gym.Env):
     self._swimmer_model.switch_param(mass, k_val, link_length)
 
   def get_physical_params(self):
-    return list(self._swimmer_model.mass) + list(self._swimmer_model.k_val) + list(self._swimmer_model.link_length)
+  	return list(self._swimmer_model.mass) + list(self._swimmer_model.k_val) + list(self._swimmer_model.link_length)
 
 
 if __name__ == "__main__":
     random_action = np.asarray([0.2, -0.2])
     #path = [(0,0),(-2,-2),(-4,-4),(-6,-6),(-8,-8),(-9,-9)]
-    path = [(-2*i,-2*i) for i in range(10)]
-    environment = SwimmerLocomotionEnv(path, robot_link_length = 0.3, record_trajectory = True )
+    path = [(-0.2*i, 0) for i in range(10)]
+    environment = SwimmerLocomotionEnv(path, random_path = True, robot_link_length = 0.3, record_trajectory = True )
     obs = environment.reset()
     #print(time_step)
     cumulative_reward = 0
     print(obs)
-    delta_list = []
-    freq = 1 
-    random_action = np.asarray([0, 0])
+
+    dist_list = []
+    print(environment._start_point_index)
+    freq = 1#1 
+    amp = 0.6#0.6
     for step in range(1000):
-      
-      if(step%100 == 0):
-        random_action*=-1
-      #random_action = np.asarray([np.cos(step*time_interval*freq), np.sin(step*time_interval*freq)]) * 0.6
-      print(random_action)
+      #random_action[0] *= -1
+      #print(random_action)
+      #random_action = np.asarray([np.cos(step*time_interval*freq), np.sin(step*time_interval*freq)]) * amp
+      random_action = [0.0,0.0]
       obs, reward, done, _ = environment.step(random_action)
-      #print(reward)
-      
+      #print(time_step)
+      dist_list.append(environment.prev_dist_to_point)
       cumulative_reward += reward
-      delta_list.append(obs[1] - obs[2])
+      print(obs)
+      print(random_action)
+      print(environment._start_point_index)
       if(done):
         obs = environment.reset()
-      # if(step%100 == 0):
-      #   print(obs)
-      #   random_action*=-1
-      #   environment.render()
+      if(step%100 == 0):
+        #random_action*=-1
+        environment.render()
       #environment.write_csv()
 
-    lines = plt.plot(delta_list, range(1000))
-    lab = plt.xlabel('delta')
-    leg = plt.legend('t')
+    lines = plt.plot(range(1000), dist_list)
+    lab = plt.xlabel('time')
+    leg = plt.legend('distance')
     plt.show()
 
     environment.draw_trajectory(complicate = True)

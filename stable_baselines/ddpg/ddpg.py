@@ -21,6 +21,9 @@ from stable_baselines.a2c.utils import total_episode_reward_logger
 from stable_baselines.deepq.replay_buffer import ReplayBuffer
 
 
+
+
+
 def normalize(tensor, stats):
     """
     normalize a tensor using a running mean and std
@@ -199,7 +202,7 @@ class DDPG(OffPolicyRLModel):
                  return_range=(-np.inf, np.inf), actor_lr=1e-4, critic_lr=1e-3, clip_norm=None, reward_scale=1.,
                  render=False, render_eval=False, memory_limit=None, buffer_size=50000, random_exploration=0.0,
                  verbose=0, tensorboard_log=None, _init_setup_model=True, policy_kwargs=None,
-                 full_tensorboard_log=False):
+                 full_tensorboard_log=False, demo_buffer = False):
 
         super(DDPG, self).__init__(policy=policy, env=env, replay_buffer=None,
                                    verbose=verbose, policy_base=DDPGPolicy,
@@ -249,6 +252,7 @@ class DDPG(OffPolicyRLModel):
         self.graph = None
         self.stats_sample = None
         self.replay_buffer = None
+        self.demo_replay_buffer = None
         self.policy_tf = None
         self.target_init_updates = None
         self.target_soft_updates = None
@@ -301,6 +305,9 @@ class DDPG(OffPolicyRLModel):
         self.obs_rms_params = None
         self.ret_rms_params = None
 
+        self.demo_buffer = demo_buffer
+        self.demo_batch_size = int(self.batch_size/2)
+
         if _init_setup_model:
             self.setup_model()
 
@@ -323,6 +330,7 @@ class DDPG(OffPolicyRLModel):
                 self.sess = tf_util.single_threaded_session(graph=self.graph)
 
                 self.replay_buffer = ReplayBuffer(self.buffer_size)
+                self.demo_replay_buffer = ReplayBuffer(1000)
 
                 with tf.variable_scope("input", reuse=False):
                     # Observation normalization.
@@ -621,6 +629,31 @@ class DDPG(OffPolicyRLModel):
         action = np.clip(action, -1, 1)
         return action, q_value
 
+    def _policy_guided(self, obs, done, func, apply_noise=False, compute_q=True):
+        """
+        Get the actions and critic output, from a given observation
+
+        :param obs: ([float] or [int]) the observation
+        :param apply_noise: (bool) enable the noise
+        :param compute_q: (bool) compute the critic output
+        :return: ([float], float) the action and critic value
+        """
+
+        rescaled_action = func(obs, done)
+        assert rescaled_action.shape == self.env.action_space.shape
+
+        # Randomly sample actions from a uniform distribution
+        # with a probabilty self.random_exploration (used in HER + DDPG)
+        action = rescaled_action / np.abs(self.action_space.low)
+
+        action = action.flatten()
+        if self.action_noise is not None and apply_noise:
+            noise = self.action_noise()
+            assert noise.shape == action.shape
+            action += noise
+        action = np.clip(action, -1, 1)
+        return action, 0
+
     def _store_transition(self, obs, action, reward, next_obs, done):
         """
         Store a transition in the replay buffer
@@ -636,6 +669,21 @@ class DDPG(OffPolicyRLModel):
         if self.normalize_observations:
             self.obs_rms.update(np.array([obs]))
 
+    def _store_demo_transition(self, obs, action, reward, next_obs, done):
+        """
+        Store a transition in the replay buffer
+
+        :param obs: ([float] or [int]) the last observation
+        :param action: ([float]) the action
+        :param reward: (float] the reward
+        :param next_obs: ([float] or [int]) the current observation
+        :param done: (bool) Whether the episode is over
+        """
+        reward *= self.reward_scale
+        self.demo_replay_buffer.add(obs, action, reward, next_obs, float(done))
+        if self.normalize_observations:
+            self.obs_rms.update(np.array([obs]))
+
     def _train_step(self, step, writer, log=False):
         """
         run a step of training from batch
@@ -645,8 +693,19 @@ class DDPG(OffPolicyRLModel):
         :param log: (bool) whether or not to log to metadata
         :return: (float, float) critic loss, actor loss
         """
-        # Get a batch
-        obs, actions, rewards, next_obs, terminals = self.replay_buffer.sample(batch_size=self.batch_size)
+        if self.demo_buffer:
+            obs1, actions1, rewards1, next_obs1, terminals1 = self.replay_buffer.sample(batch_size = int(self.batch_size - self.demo_batch_size))
+
+            obs2, actions2, rewards2, next_obs2, terminals2 = self.demo_replay_buffer.sample(batch_size=self.demo_batch_size)
+            obs = np.concatenate((obs1, obs2))
+            actions = np.concatenate((actions1, actions2))
+            rewards = np.concatenate((rewards1, rewards2))
+            next_obs = np.concatenate((next_obs1, next_obs2))
+            terminals = np.concatenate((terminals1, terminals2))
+
+        else:
+            # Get a batch
+            obs, actions, rewards, next_obs, terminals = self.replay_buffer.sample(batch_size=self.batch_size)
         # Reshape to match previous behavior and placeholder shape
         rewards = rewards.reshape(-1, 1)
         terminals = terminals.reshape(-1, 1)
@@ -797,8 +856,11 @@ class DDPG(OffPolicyRLModel):
                 self.param_noise_stddev: self.param_noise.current_stddev,
             })
 
+
     def learn(self, total_timesteps, callback=None, seed=None, log_interval=100, tb_log_name="DDPG",
-              reset_num_timesteps=True, replay_wrapper=None):
+              reset_num_timesteps=True, replay_wrapper=None, 
+              pre_collect = None, pre_collect_function = None, on_policy = True):
+
 
         new_tb_log = self._init_num_timesteps(reset_num_timesteps)
 
@@ -823,6 +885,41 @@ class DDPG(OffPolicyRLModel):
             episode_rewards_history = deque(maxlen=100)
             self.episode_reward = np.zeros((1,))
             episode_successes = []
+
+            #pre collect steps
+            done = True
+            new_obs = None
+            total_reward = None
+            if pre_collect is not None:
+                print(f"precollecting {pre_collect} episodes")
+                for i in range(pre_collect):
+                    # Predict next action.
+                    if(done):
+                        #self.env.render()
+                        # if(i!=0):
+                        #     self.env.draw_trajectory(complicate = True)
+                        obs = self.env.reset()
+                        if total_reward:
+                            print(f"total reward from demonstration: {total_reward}")
+                        total_reward = 0
+                    else:
+                        obs = new_obs
+                    rescaled_action = pre_collect_function(obs, done)
+                    assert rescaled_action.shape == self.env.action_space.shape
+
+
+                    # Randomly sample actions from a uniform distribution
+                    # with a probabilty self.random_exploration (used in HER + DDPG)
+                    action = rescaled_action / np.abs(self.action_space.low)
+
+                    new_obs, reward, done, info = self.env.step(rescaled_action)
+                    total_reward+=reward
+
+                    self._store_demo_transition(obs, action, reward, new_obs, done)
+                print("finished collecting")
+
+
+
             with self.sess.as_default(), self.graph.as_default():
                 # Prepare everything.
                 self._reset()
@@ -849,15 +946,24 @@ class DDPG(OffPolicyRLModel):
                 epoch_qs = []
                 epoch_episodes = 0
                 epoch = 0
+
+                done = True
+
+
+
                 while True:
                     for _ in range(log_interval):
                         # Perform rollouts.
+                        
                         for _ in range(self.nb_rollout_steps):
                             if total_steps >= total_timesteps:
                                 return self
 
-                            # Predict next action.
-                            action, q_value = self._policy(obs, apply_noise=True, compute_q=True)
+                            if(on_policy):
+                                # Predict next action.
+                                action, q_value = self._policy(obs, apply_noise=True, compute_q=True)
+                            else:
+                                action, q_value = self._policy_guided(obs, done, pre_collect_function)
                             assert action.shape == self.env.action_space.shape
 
                             # Execute next action.
@@ -866,7 +972,7 @@ class DDPG(OffPolicyRLModel):
 
                             # Randomly sample actions from a uniform distribution
                             # with a probabilty self.random_exploration (used in HER + DDPG)
-                            if np.random.rand() < self.random_exploration:
+                            if np.random.rand() < self.random_exploration and on_policy:
                                 rescaled_action = action = self.action_space.sample()
                             else:
                                 rescaled_action = action * np.abs(self.action_space.low)

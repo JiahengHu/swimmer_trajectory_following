@@ -1,7 +1,3 @@
-###########################
-##  Using position control
-###########################
-
 import gym
 from gym import spaces
 
@@ -62,7 +58,7 @@ time_period = 2*np.pi
 class SwimmerLocomotionEnv(gym.Env):
 
   def __init__(self, path = None, random_path = use_random_path, use_hard_path = not easy_path, 
-    record_trajectory = save_trajectory, 
+    record_trajectory = save_trajectory, action_range = max_vel/5,
     robot_link_length = param_robot_link_length, robot_k = 1):
         
     # This determines what kind of path we are using
@@ -70,7 +66,7 @@ class SwimmerLocomotionEnv(gym.Env):
     self.use_random_path = random_path
     self.save_trajectory = record_trajectory
     self.n = num_of_links
-    self.action_space = spaces.Box(low = -max_angle, high = max_angle, 
+    self.action_space = spaces.Box(low = -action_range, high = action_range, 
         shape=(2,), dtype=np.float32) #since we have two joints
     
     # state: q1, q2, theta, prev_action
@@ -123,7 +119,8 @@ class SwimmerLocomotionEnv(gym.Env):
     if(include_prev_action):
       self._state = self._state + [0.0, 0.0] #the previous action
     if(include_time):
-      self._state = self._state + [self._total_step*time_interval%time_period]
+      self._state = self._state + [self._total_step*time_interval]
+      #self._state = self._state + [self._total_step*time_interval%time_period]
   
   def reset_param(self):
     self._episode_ended = False
@@ -161,7 +158,8 @@ class SwimmerLocomotionEnv(gym.Env):
     if(include_prev_action):
       self._state = np.concatenate([self._state, self.previous_action])
     if(include_time):
-      self._state = np.concatenate([self._state, [self._total_step*time_interval%time_period]])
+      self._state = self._state + [self._total_step*time_interval]
+      #self._state = np.concatenate([self._state, [self._total_step*time_interval%time_period]])
     
   
 
@@ -260,20 +258,17 @@ class SwimmerLocomotionEnv(gym.Env):
   #check whether the action is valid, if not then clip it to the correct value
   #ONLY3LINK
   def check_action_validity(self, action):
-    q0 = self._state[0]
-    q1 = self._state[1]
-    d0 = action[0] - q0
-    d1 = action[1] - q1
-    if(d0>0):
-      a0 = np.min([max_vel, d0/time_interval])
-    else:
-      a0 = np.max([-max_vel, d0/time_interval])
-    if(d1>0):
-      a1 = np.min([max_vel, d1/time_interval])
-    else:
-      a1 = np.max([-max_vel, d1/time_interval])
+    new_action = np.asarray(action)
+    new_action += default_vel(self._state[-1])
 
-    new_action = np.asarray([a0,a1])
+    q_displacement = time_interval*new_action
+    q_end = self._state[:2] + q_displacement
+    for i in range(2):
+      if(q_end[i] > max_angle):
+        new_action[i] = (max_angle - self._state[i])/time_interval
+      elif(q_end[i] < -max_angle):
+        new_action[i] = (-max_angle - self._state[i])/time_interval
+    new_action = np.clip(new_action, -max_vel, max_vel)
     return new_action
   
   #calculate the mostion score
@@ -473,6 +468,11 @@ class SwimmerLocomotionEnv(gym.Env):
   def get_physical_params(self):
     return list(self._swimmer_model.mass) + list(self._swimmer_model.k_val) + list(self._swimmer_model.link_length)
 
+def default_vel(time):
+  freq = 1
+  amp = 0.6
+  return np.asarray([np.cos(time*freq), np.sin(time*freq)]) * amp
+
 
 if __name__ == "__main__":
     random_action = np.asarray([0.2, -0.2])
@@ -484,17 +484,19 @@ if __name__ == "__main__":
     cumulative_reward = 0
     print(obs)
     delta_list = []
-    freq = 1 
-    random_action = np.asarray([0, 0])
+    freq = 1.5758630182179385#1 
+    amp = 0.3083447975955805#0.6
+    time_list = []
+    x_list = []
     for step in range(1000):
-      
-      if(step%100 == 0):
-        random_action*=-1
-      #random_action = np.asarray([np.cos(step*time_interval*freq), np.sin(step*time_interval*freq)]) * 0.6
+      #test
+      random_action = np.asarray([0.0,0.0])
+      x_list.append(random_action[0])
+      #random_action = np.asarray([np.cos(step*time_interval*freq), np.sin(step*time_interval*freq)]) * amp
       print(random_action)
       obs, reward, done, _ = environment.step(random_action)
       #print(reward)
-      
+      time_list.append(obs[-1])
       cumulative_reward += reward
       delta_list.append(obs[1] - obs[2])
       if(done):
@@ -505,10 +507,22 @@ if __name__ == "__main__":
       #   environment.render()
       #environment.write_csv()
 
-    lines = plt.plot(delta_list, range(1000))
-    lab = plt.xlabel('delta')
-    leg = plt.legend('t')
+    # lines = plt.plot(delta_list, range(1000))
+    # lab = plt.xlabel('delta')
+    # leg = plt.legend('t')
+    # plt.show()
+
+    # lines = plt.plot(time_list, range(1000))
+    # lab = plt.xlabel('time')
+    # leg = plt.legend('t')
+    # plt.show()
+
+
+    lines = plt.plot(range(1000), x_list)
+    lab = plt.xlabel('time')
+    leg = plt.legend('u1')
     plt.show()
+
 
     environment.draw_trajectory(complicate = True)
     #print(time_step)
