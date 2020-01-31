@@ -1,345 +1,62 @@
-robot = get_robot(args.robot)(xmlfile)
-params = robot.params()
+##Todo:##
+1. The action is essentially binary
+-- We can try discretize the action space into trinary
 
-use normed parameters
+2. Fix a joint, train the other joint
+-- alternatively, Train togather first, and then fix one move another
 
-env is just normal environment (which we can replace with our own environment)
-The robot parames are passed in through the xml file (which we can change to make it hardcoded)
+3. Why is the Reynold training much slower? 
+-- think about the sequence of devision
 
-Everytime, observation is concatenated with the robot parameters in the augmented environment
+4. Try action baseline on Reynolds
 
-Could be the initialization or the assignment problem
+5. Try changing the baseline 
+	**+ sin + cos
+	change the phase => 90%
 
-right now I set the range to 0.1, 0.1, 0.3
-While the sampling is around these values
-(0.05 - 0.2) (0.05 - 0.2) (0.15 - 0.6)
+6. Think about how to seperate the experience
 
+7. Guided policy search?
 
-It is not using the GPU... So it might be using CPU / stuck at somewhere
+8. Cyclic => some terminal state vs some punishment for not moving
+	- not moving forward => result in terminal
+	- force a gait usage (use a action from a previous phase)
+	**- Sampling w. baseline
 
-1. It is on-policy, meaning that a replay buffer is not being used
-2. rollout_length = 1024??? Meaning it will collect 1024 amount of data and then use it to do update?
+9. Model-based
+	- 
 
 
-Also, need a way to save the robot parameters
-
-episode length: need to change in both env and init
-
-change the save freq
-change the number of episode
-
-
-chop means halve, this use the mpi_robot, and currently haven't been tested at all (so we might actually get some bug when dealing with this)
-
-self.timesteps_per_step = self.nenv * self.rollout_length
-							8*64 (previously 1024)
-							How many actions in total
-We have 8 envs in total everytime
-
-8 processes, only number 1 env saves the result
-
-all with rsp to t: initially 1e9
-
-if rollout = 1024*8
-	doesn't matter
-
-10*8 (pre) + 8*10*8 (update) + 10*8 (post)
-	Looks like something wrong? Cos we really only need 3 chops
-
-	chop set the probability to 0, and the probability is synchronized across the environments, so the number of enviornment has nothing to do with the number of prob distri
-
-512 + 2*512 + 512
-
-chopping takes a long time (but it is probably reasonable)
-Why does it chop on round 4 (instead of round 1, 2, 3?)
-
-choping is taking too much time
-#experiment: set sampling to 1, see how it goes
-
-
-ctr A ctr D
-
-screen -r
-screen -S
-
-hanabi_no_seed_ben_gpu2
-
-aux
-
-
-
-ssh -p 23 biorobotics@highbay.pc.cs.cmu.edu
-
-
-What happens to the constraint??? 
-
-____________________________________________________________________________________________
-
-The start of gait optimization
-1. If we stick with PPO, we need to make sure that 
-
-
-only works for one env, otherwise memory out
-
-right now it is way slower than their env (per step), even though the batch size is significantly smaller, why? Is it really that different? (1024 steps is significantly faster than 64 steps?)
-
-growth == true might hamper the speed?
-
-result for 1e6:
-robot/mass_1 value: 0.0795760452747345
-robot/mass_2 value: 0.13437068462371826
-robot/mass_3 value: 0.06639838814735413
-robot/k_constant_1 value: 0.10338518023490907
-robot/k_constant_2 value: 0.08443064689636232
-robot/link_length_1 value: 0.408584064245224
-robot/link_length_2 value: 0.2789143770933151
-robot/link_length_3 value: 0.18489774763584135
-
-
-
-
-50s:
-getting called 1585 times
-replace dummy symbols 0.0006654262542724609 seconds ---
-solve to get a matrix solution 1.9550323486328125e-05 seconds ---
-odeint 1.2791054248809814 seconds ---
-0.00002
-
-5s:
-getting called 203 times
-replace dummy symbols 0.0006403923034667969 seconds ---
-solve to get a matrix solution 1.9073486328125e-05 seconds ---
-odeint 0.20050811767578125 seconds ---
-
-
-simplify doubles the speed
-msub?
-doesn't improve speed
-
-if substituting in the param doens't work, probably has to resort to c solution
-currently: kinda worked
-
------------------------------------------------------------
-
-Note:
-1. For now, in right_hand_side, I removed the T[0]. Add it back if necessary
-2. Set up the q1 and q2 amplitude & frequency
-
-3. What should be the time interval? For now I set it to 1 / 20
-
-4. Think about the length of the training: how can we make it so that it will learn to collect useful data? [We can end episode if the robot is too far away from the target!! [and get a negetive reward? Maybe just zero reward]]
-
-5. The number of points to return: currently 10, should we make it bigger / smaller?
-
-6. reward scaling & distance of path scaling
-
-7. stop episode num
-
-8. Add the previous action
-
-cleanup: change triple reset to reset
-
-9. Look up how the range is getting used
-
-Problem:
-I think the action space is confusing the robot too much that it don't know what to do
-1. We can discretize the action space
-2. We can try to change the reward structure
-	- Change it so that we encourage moving?
-
-The trajectory also looks weird: why is it straigh lines?
-
-The reward scale needs to be changed: the robot gets a lot of reward by going back and forth at a local scale
-
-!!because the robot is too far away from the path
-We need to at least adjust the gaussian threshold
-# because we can't stay close to the track at every single timestamp
-
-
-
-#################################################
-Does it still make sense if we have varying time interval?
-I don't think so, the action could simply choose an action that extend the total time
-Maybe it does, as long as we are restricting the total time
-
-
-
+##Thoughts:##
 1. Enforce cyclic motion
 	Option 1: I found it very hard to phrase it:
 					- discard the action if it is not its turn
 					- action include freq + amp
 	Option 2: the CMU paper
+	-- For the phase:
+			q1 - q2?
+			Then a delta q that signifies the change of this
 	Option 3: cpg
+	Option 4: baseline action
 
-2. Use hierachical model
-	Option 1: sub-policy + general policy
-			[As it seems that the robot is able to learn to move forward]
-
-
-
-TODO:
-1. Add ddpg-phase (Done)
-2. Test with pure ddpg (Done)
-3. Examine the environment (Done)
-4. Look at the hopper environment (Done)
-
-Other problems encountered:
-1. Why is the tf-agent running so slowly?
-2. Reward for period shaping
-
-Howie:
-1. Learning the bounding box (what should be the start and end phase of the robot?)
-2. （With different terrains）
+2. How to make sure that the start and end poses are the same?
+-- Just append an adjusting parameter at the end
 
 
-For the phase:
-q1 - q2?
-Then a delta q that signifies the change of this
 
-I actually feels like a model based method could work
+##Things to try later:##
+1. Hierachical RL:
+- Having multi-baseline
+- Train based on that
+- sample baseline
+- Update the baseline through evolution
+
+2. Model based method could work
 V(q1, q2, theta)
 Transition
 
+3. Learning the bounding box (what should be the start and end phase of the robot?)
+-- Have this working With different terrains
 
-
-For Shape Completion:
-Jaccard Full vs
-Jaccard Exact
-
-
-
-Generating Graphs: write the code in pytorch
-Look into conditional GAN
-
-See how the periodic training goes, check the action space
-
-Generat the data and do comparison for the shape completion
-
-
-
-
-
-
-Arthum:
-Nov. 6
-The effort of Mother
-Different art appeals to different people
-
-The house approach by car
-
-The chair and table: are they part of the house?
-
-Does the critic makes the situation worse?
-
-Nov. 14
-Not clear what the figures are
-
-
-
-
-Try:
-reward to the first link
-theta to the first link
-
-Fix a joint, train the other joint
-
-Train togather first, and then fix one move another
-
-
-Maybe a shorter episode while fixing the start / end position will help?
-How about just move the joint to the desired position in the end? (No that won't work)
-
-
-1. Fix a sin wave
-2. Advantage
-3. Multi-agent way
-4. Iterative training
-5. Sequential motion decision
-
-1. Retrain the openai swimmer (maybe do experiments on that)
-
-
-
-in swimmer-v2, any deep RL method provides a deceptive gradient information which is detrimental to convergence towards efficient actor parameters
-
-TRPO significantly outperforms
-all other algorithms. Due to the dynamics of the water-like
-environment, a local optimum for the system is to curl up and
-flail without proper swimming. However, this corresponds
-to a return of ∼130. 
-
-
-Speak about:
-What does it take to train a swimmer
-
-(Get a visualization for the environment)
-
-Train and see how it works on the actual trajectory following
-Debug about the distance reward
-
-1. Stuck at the planned "first step"
-2. Why this problem is so hard (i.e. what are the methods tried) (show the result)
-3. Eventual method to solve the problem
-	-Discuss about why this method solves the problem better
-4. Conclusion:
-	RL is still far from perfect
-	Huge space in exploring why something learn / didn't learn
-
-Conclusion:
-We found a learning algorithm that can get a swimmer robot to locomote efficiently 
-
-Extension:
-1. Train the trajectory follower based on sin wave?
-2. Train the trajectory follower based on ERL
-
-
-Evolution algo:
-1. temporal credit assignment with sparse rewards 
-2. lack of effective exploration
-3. brittle convergence properties
-4. 
-
-DRL:
-1. optimization of a large number of parameters
-
-Something to think about: temporal difference
-
-Adversirial RL??
-
-
-Fix the replay buffer => ddpg see what happens
-Find the region (the range of action space)
-curvature plot => the closer to the center
-
-See if evolutionary algo works on our swimmer
-
-!thinks about how to make sure that the start and end poses are the same
-
-
-Dec 9.
-Note:
-The action is essentially binary
-
-#I think that with the baseline the snake is unable to go down...
-
-
-
-OBS: with ddpg expert traj, it still converges to not moving
-	tried: demo_buffer + exploration
-		   demo_bufeer only (varing freq vs only amplitude)
-
-
-Performance tied to baseline that we set
-- sample baseline
-- 
-
-Find the optimal action space
-- 
-- 
-
-Try the other kinematic model
-
-
-Hierachical RL:
-Having multi-baseline
-Train based on that
+reynolds: step time: 0.03s
+baseline: step time: 0.001s

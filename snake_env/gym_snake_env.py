@@ -332,15 +332,25 @@ class SnakeLocomotionEnv(gym.Env):
   #   plt.show()
 
 
-  def render(self, mode = 'human'):
+  def render(self, mode = 'human', save = False, save_id = None):
     fig = plt.figure()
     plot = fig.add_subplot(111)
     for i in range(len(self._path)):
       plot.plot(self._path[i][0], self._path[i][1],  'ro')
     plot.plot(self._x,self._y, 'bo')
     plot.plot(self._x+0.1*cos(self._t),self._y+0.1*sin(self._t),'bo')
+    plt.xlim(-1.5, 0.5)     # set the xlim to left, right
+    plt.ylim(-1, 1)
     if(mode=='human'):
-      plt.show()
+      if(save):
+        if(save_id is not None):
+          num = str(save_id).rjust(4,'0')
+          plt.savefig('img/frame'+num+'.png')
+        else:
+          print("pass in a save id!")
+          exit()
+      else:
+        plt.show()
     else:
       return self.fig2data(fig)
 

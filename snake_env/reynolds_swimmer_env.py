@@ -10,11 +10,9 @@ import math
 import random
 import os
 try:
-  from snake_env.swimmer_lib import Swimmer
+  from snake_env.reynolds_swimmer_lib import Swimmer
 except:
-  from swimmer_lib import Swimmer
-
-import time
+  from reynolds_swimmer_lib import Swimmer
 
 
 ##################################
@@ -22,13 +20,13 @@ import time
 ##################################
 
 num_of_links = 3                        #the number of links of the snake robot
-num_of_points = 3                       #the number of points to look ahead
+num_of_points = 1                       #the number of points to look ahead
 max_angle = 1.3                         #the range of the joint angle, 75 degree (maybe we should have it in the lib)
 max_vel   = 0.6                         #the maximum velocity allowed (since we are using velocity control)
 time_interval = 0.04                    #the length of each episode of action
-end_step_time = 100
+end_step_time = 40
 end_step_num = end_step_time/time_interval                     #stop an episode after a given amount of time
-dist_threshold = 0.2                    #the value to determine if the robot has reach the end position
+dist_threshold = 0.5                    #the value to determine if the robot has reach the end position
 path_length = 80                        #the length of the randomly generated path
 use_random_state = False                #whether the robot start with a random state initially
 use_random_path = False                 #whether the robot should use a random path
@@ -40,11 +38,6 @@ param_robot_link_length = 0.3           #this controls the link length of the ro
 reward_tracking_point = 1 #int(3 / time_interval)  #calculate reward after n steps
 
 include_prev_action = False
-include_time = True
-
-action_divider = 4
-
-start_state = [-1, -1.3]
 
 ##################################
 ###### the snake environment   ###
@@ -57,11 +50,6 @@ start_state = [-1, -1.3]
 
 ######  function with ONLY3LINK tag only works for 3link robot  ######
 
-def default_vel(time):
-  freq = 1
-  amp = 0.6
-  return np.asarray([np.cos(time*freq), np.sin(time*freq)]) * amp
-
 class SwimmerLocomotionEnv(gym.Env):
 
   def __init__(self, path = None, random_path = use_random_path, use_hard_path = not easy_path, 
@@ -73,14 +61,12 @@ class SwimmerLocomotionEnv(gym.Env):
     self.use_random_path = random_path
     self.save_trajectory = record_trajectory
     self.n = num_of_links
-    self.action_space = spaces.Box(low = -max_vel/action_divider, high = max_vel/action_divider, 
+    self.action_space = spaces.Box(low = -max_vel, high = max_vel, 
         shape=(2,), dtype=np.float32) #since we have two joints
     
     num_of_obs = num_of_links + 2*num_of_points - 1
     if include_prev_action:
       num_of_obs += 2
-    if(include_time):
-      num_of_obs +=1
     # state: q1, q2, points, prev_action
     self.observation_space = spaces.Box(low=-np.inf, high=np.inf, shape=
                     (num_of_obs,), dtype=np.float32)
@@ -91,13 +77,13 @@ class SwimmerLocomotionEnv(gym.Env):
     #the path that the robot has to follow, an array of points
     self._path = path         
     self.reset_path()
-    self.reset_param()
     self.reset_state()
+    self.reset_param()
 
   def reset(self):
     self.reset_path()
-    self.reset_param()
     self.reset_state()
+    self.reset_param()
     return np.array(self._state, dtype=np.float32)
   
   def reset_path(self):
@@ -116,7 +102,7 @@ class SwimmerLocomotionEnv(gym.Env):
         state_0 = [random.uniform(-pi/4, pi/4) for i in range(self.n - 1)]
     else:
       #state_0 = [pi/6, -pi/6]+self.point_transformation([0,0])+[0, 0]
-      state_0 = start_state#[0 , -0.5]
+      state_0 = [0 , -0.5]
     temp_path = self._path[1:num_of_points+1]
     
     for i in range(num_of_points):
@@ -124,8 +110,6 @@ class SwimmerLocomotionEnv(gym.Env):
     self._state = state_0
     if include_prev_action:
       self._state += [0.0, 0.0] #the previous action
-    if(include_time):
-      self._state = self._state + [self._total_step*time_interval]
   
   def reset_param(self):
     self._episode_ended = False
@@ -164,8 +148,6 @@ class SwimmerLocomotionEnv(gym.Env):
     self._state = temp_state
     if include_prev_action:
       self._state = np.concatenate([self._state, self.previous_action])
-    if(include_time):
-      self._state = self._state + [self._total_step*time_interval]
   
 
   def step(self, action):
@@ -255,8 +237,6 @@ class SwimmerLocomotionEnv(gym.Env):
   #ONLY3LINK
   def check_action_validity(self, action):
     new_action = np.asarray(action)
-    new_action += default_vel(self._state[-1])
-
     q_displacement = time_interval*new_action
     q_end = self._state[:2] + q_displacement
     for i in range(2):
@@ -417,10 +397,10 @@ class SwimmerLocomotionEnv(gym.Env):
     return path
 
   #should be easier for the robot to follow, espycially when the robot don't use random state
-  def generate_easy_path(self, n, point_dist = 0.1):
+  def generate_easy_path(self, n, point_dist = 0.2):
     random.seed(datetime.now())
     path = [(0,0)]
-    angle = random.uniform(7*pi/8,9*pi/8)
+    angle = random.uniform(pi,3*pi/4.0)
     x = cos(angle)*point_dist
     y = sin(angle)*point_dist
     path.append((x,y))
@@ -497,7 +477,7 @@ if __name__ == "__main__":
     random_action = np.asarray([0.2, -0.2])
     #path = [(0,0),(-2,-2),(-4,-4),(-6,-6),(-8,-8),(-9,-9)]
     path = [(-0.2*i, 0) for i in range(10)]
-    environment = SwimmerLocomotionEnv(path, random_path = True, robot_link_length = 0.3, record_trajectory = True )
+    environment = SwimmerLocomotionEnv(path, robot_link_length = 0.3, record_trajectory = True )
     obs = environment.reset()
     #print(time_step)
     cumulative_reward = 0
@@ -510,11 +490,8 @@ if __name__ == "__main__":
     for step in range(1000):
       #random_action[0] *= -1
       #print(random_action)
-      #random_action = np.asarray([np.cos(step*time_interval*freq), np.sin(step*time_interval*freq)]) * amp
-      random_action = [0.0,0.0]
-      start_time = time.time()
+      random_action = np.asarray([np.cos(step*time_interval*freq), np.sin(step*time_interval*freq)]) * amp
       obs, reward, done, _ = environment.step(random_action)
-      print("step %s seconds ---" % (time.time() - start_time))
       #print(time_step)
       dist_list.append(environment.prev_dist_to_point)
       cumulative_reward += reward
@@ -524,7 +501,7 @@ if __name__ == "__main__":
       if(done):
         obs = environment.reset()
       # if(step%100 == 0):
-      #   #random_action*=-1
+      #   random_action*=-1
       #   environment.render()
       #environment.write_csv()
 

@@ -1,7 +1,7 @@
 from stable_baselines.common.policies import MlpPolicy
 from stable_baselines.common.vec_env import SubprocVecEnv
 from stable_baselines import PPO2
-from snake_env.gym_swimmer_forward_sin import SwimmerLocomotionEnv
+from snake_env.gym_swimmer_forward_basline import SwimmerLocomotionEnv
 import sys
 
 # multiprocess environment
@@ -26,7 +26,7 @@ if __name__ == "__main__":
 
 	max_vel = 0.6
 	for j in range(1):
-		action_range = max_vel/(j+6)
+		action_range = 0.3
 		n_cpu = 6
 		env = SubprocVecEnv([lambda: SwimmerLocomotionEnv(
 				path = fixed_path, 
@@ -37,11 +37,11 @@ if __name__ == "__main__":
 
 		print("new env")
 		#two layers of size 64
-		model = PPO2(MlpPolicy, env, verbose=1, tensorboard_log='./tf_logs/test_action_range/')
+		model = PPO2(MlpPolicy, env, verbose=1, tensorboard_log='./tf_logs/test_action_range_cos/')
 
 
 		for i in range(20):
 			model.learn(total_timesteps=250000, reset_num_timesteps = False)
-			model.save("ppo2_swimmer_action_range_"+str(action_range))
+			model.save("ppo2_swimmer_action_range_cos_"+str(action_range))
 
 		del env

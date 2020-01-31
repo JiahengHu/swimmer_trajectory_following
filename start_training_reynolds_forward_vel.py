@@ -5,18 +5,18 @@ from stable_baselines.common.vec_env import DummyVecEnv
 from stable_baselines.common.vec_env import SubprocVecEnv
 from stable_baselines import PPO2
 import mujoco_py
-from snake_env.gym_swimmer_env_baseline import SwimmerLocomotionEnv
+from snake_env.reynolds_swimmer_forward_vel import SwimmerLocomotionEnv
 
 # multiprocess environment
 # n_cpu = 4
 # env = SubprocVecEnv([lambda: gym.make('CartPole-v1') for i in range(n_cpu)])
 fixed_path = [(-0.2*i, 0) for i in range(30)]
-use_random_path = True
+use_random_path = False
 robot_k = 1.0
 robot_link_length = 0.3
 gamma = 1.0
 
-resume = not use_random_path
+resume = False
 
 
 if __name__ == "__main__":
@@ -29,13 +29,10 @@ if __name__ == "__main__":
 	        use_hard_path = False, 
 	        robot_link_length = robot_link_length) for i in range(n_cpu)])
 	if resume:
-		model = PPO2.load("model/traj_follow_line/ppo_weight_99", env = env, gamma = gamma, verbose=1, tensorboard_log='./tf_logs/traj_follow/')
+		model = PPO2.load("model/reynolds_forward/reynolds_ppo_weight_99", env = env, gamma = gamma, verbose=1, tensorboard_log='./tf_logs/traj_follow/')
 	else:
-		model = PPO2(MlpPolicy, env, gamma = gamma, verbose=1, tensorboard_log='./tf_logs')
+		model = PPO2(MlpPolicy, env, gamma = gamma, verbose=1, tensorboard_log='./tf_logs/reynolds_forward')
 
 	for i in range(100):
 		model.learn(total_timesteps=250000, reset_num_timesteps = False)
-		if use_random_path:
-			model.save("model/traj_follow_curve/ppo_weight_"+str(i))
-		else:
-			model.save("model/traj_follow_line/ppo_weight_"+str(i))
+		model.save("model/reynolds_forward/reynolds_ppo_weight_"+str(i))
